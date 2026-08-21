@@ -217,6 +217,7 @@ function showMain() {
     const canEdit = APP.employee.role === "edit";
     document.getElementById("addButton").style.display = canEdit ? "" : "none";
     document.getElementById("reviewButton").style.display = canEdit ? "inline-flex" : "none";
+    document.getElementById("refreshDaftraButton").style.display = canEdit ? "inline-flex" : "none";
 
     dbGet("bundle")
         .then((cached) => {
@@ -262,6 +263,25 @@ function doSync(showSpinner) {
             // just means we keep showing what we've got -- not fatal.
             if (!APP.data) showError(err);
         });
+}
+
+// Pulls fresh balances from Daftra into the Debts Snapshot sheet (Long
+// Debtors only -- Short Debtors are never touched by this). Can take a
+// minute or two on an account with a lot of invoice history, so this is
+// a manual edit-role action, not something that runs automatically on
+// every sync.
+function doRefreshFromDaftra() {
+    withOnlineCheck(
+        () => showError("You're offline -- connect to the internet to refresh from Daftra."),
+        () => {
+            apiCall("refreshDebtsFromApp", APP.employee.name, APP.employee.pin)
+                .then(() => doSync(true))
+                .catch((err) => {
+                    hideLoading();
+                    showError(err);
+                });
+        },
+    );
 }
 
 function render() {
@@ -404,11 +424,29 @@ function renderDebtorsList() {
     }
 
     empty.style.display = "none";
-    container.innerHTML = list.map((d) => debtCardHtml(d, canEdit)).join("");
+    // One bad record's data shouldn't be able to blank the entire list --
+    // catch per-card so a single exception just skips that card instead
+    // of aborting the whole innerHTML assignment (see debtWaLink()'s
+    // comment for the real case that caused this).
+    container.innerHTML = list
+        .map((d) => {
+            try {
+                return debtCardHtml(d, canEdit);
+            } catch (e) {
+                console.error("debtCardHtml failed for", d.clientName, e);
+                return `<div class="debtCard">${escapeHtml(d.clientName)} -- couldn't render this card (${escapeHtml(e.message)})</div>`;
+            }
+        })
+        .join("");
 }
 
 function debtWaLink(d) {
-    const digits = (d.phone || "").replace(/\D/g, "");
+    // Daftra occasionally hands back a phone field as a number, not a
+    // string (confirmed 2026-08-22 -- a single non-string phone value
+    // was throwing here and silently blanking the ENTIRE debtor list,
+    // since one exception inside the render map aborted the whole
+    // innerHTML assignment). String() first, always.
+    const digits = String(d.phone || "").replace(/\D/g, "");
     if (!digits) return null;
 
     const remaining = d.amount - d.amountPaid;
