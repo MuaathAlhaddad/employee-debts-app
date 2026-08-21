@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Employee Debts</title>
+    <meta name="theme-color" content="#1b2430" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+    <div id="loadingIndicator" class="loadingOverlay" style="display: none">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Login gate -->
+    <div id="loginScreen" class="debtLoginWrap" style="display: none">
+        <div class="debtLoginCard">
+            <h1 class="debtLoginTitle">The Chase List</h1>
+            <p class="debtLoginSub">Sign in to follow up on debtors and look up product prices.</p>
+
+            <label class="debtLoginLabel">Your name</label>
+            <select id="loginName" class="debtLoginInput"></select>
+
+            <label class="debtLoginLabel">PIN</label>
+            <input type="password" id="loginPin" inputmode="numeric" placeholder="****" class="debtLoginInput" />
+
+            <div id="loginError" style="display: none" class="debtLoginError"></div>
+
+            <button type="button" class="debtBtn debtBtnDark debtLoginButton" onclick="doLogin()">Sign in</button>
+        </div>
+    </div>
+
+    <!-- Main app -->
+    <div id="mainScreen" style="display: none" class="debtApp">
+        <div class="debtHeader">
+            <div class="debtHeaderTop">
+                <h1 class="debtTitle">The Chase List</h1>
+                <div id="debtsSnapshotTime" class="debtSnapshotTime"></div>
+            </div>
+
+            <div class="debtHeaderRow">
+                <button type="button" class="debtHeaderLink" onclick="doLogout()">Sign out <span id="whoAmI"></span></button>
+                <div class="debtHeaderActions">
+                    <button type="button" id="reviewButton" class="debtHeaderLink" style="display: none" onclick="openReview()">
+                        Review <span id="reviewBadge" class="debtCountBadge" style="display: none"></span>
+                    </button>
+                    <button type="button" class="debtHeaderLink" onclick="doSync(true)">Sync now</button>
+                </div>
+            </div>
+
+            <div class="debtSyncBar">
+                <span id="syncStatus">Not synced yet</span>
+                <span class="debtOfflinePill">Offline - showing last sync</span>
+            </div>
+
+            <div class="debtStatRow">
+                <div>
+                    <div class="debtStatLabel">Outstanding</div>
+                    <div class="debtStatValue" id="debtsTotal">0</div>
+                </div>
+                <div id="debtsChaseToday" class="debtChaseTodayPill" style="display: none"></div>
+            </div>
+        </div>
+
+        <!-- Debtors view -->
+        <div id="debtorsView">
+            <div class="debtSearchBar">
+                <input type="text" id="debtsSearch" placeholder="Search by name..." oninput="renderDebtorsList()" />
+            </div>
+
+            <div id="debtsTypeToggle" class="debtTypeToggle">
+                <button type="button" class="debtTypeOpt active" data-type="all" onclick="setDebtsTypeFilter('all')">All</button>
+                <button type="button" class="debtTypeOpt" data-type="long" onclick="setDebtsTypeFilter('long')">Daftra</button>
+                <button type="button" class="debtTypeOpt" data-type="short" onclick="setDebtsTypeFilter('short')">Notebook</button>
+            </div>
+
+            <div id="debtsTabs" class="debtTabsRow">
+                <button type="button" class="debtTab active" data-tab="today" onclick="setDebtsTab('today')">Today <span class="debtTabCount">0</span></button>
+                <button type="button" class="debtTab" data-tab="active" onclick="setDebtsTab('active')">Active <span class="debtTabCount">0</span></button>
+                <button type="button" class="debtTab" data-tab="paid" onclick="setDebtsTab('paid')">Paid <span class="debtTabCount">0</span></button>
+                <button type="button" class="debtTab" data-tab="dead" onclick="setDebtsTab('dead')">Dead debt <span class="debtTabCount">0</span></button>
+            </div>
+
+            <div id="debtsList" class="debtList"></div>
+            <div id="debtsEmpty" class="emptyState" style="display: none"></div>
+        </div>
+
+        <!-- Products view -->
+        <div id="productsView" style="display: none">
+            <div class="debtSearchBar">
+                <input type="text" id="productSearch" placeholder="Search product by name or SKU..." oninput="renderProductsView()" />
+            </div>
+            <div id="productList" class="productList"></div>
+            <div id="productsEmpty" class="emptyState">Search for a product by name or SKU.</div>
+        </div>
+
+        <!-- Add Short Debt bottom sheet -->
+        <div id="addShortForm" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) toggleAddShortForm()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2>New debt to chase</h2>
+                    <button type="button" class="debtSheetClose" onclick="toggleAddShortForm()">X</button>
+                </div>
+
+                <label class="debtLoginLabel">Who owes it</label>
+                <input type="text" id="newName" class="debtLoginInput" placeholder="Debtor's name" />
+
+                <label class="debtLoginLabel">Phone (for WhatsApp reminders)</label>
+                <input type="text" id="newPhone" class="debtLoginInput" placeholder="+9665..." />
+
+                <label class="debtLoginLabel">Amount owed</label>
+                <input type="number" id="newAmount" class="debtLoginInput" placeholder="0" />
+
+                <label class="debtLoginLabel">Date given</label>
+                <input type="date" id="newDateGiven" class="debtLoginInput" />
+
+                <label class="debtLoginLabel">Due date</label>
+                <input type="date" id="newDueDate" class="debtLoginInput" />
+
+                <label class="debtLoginLabel">Notes (optional)</label>
+                <textarea id="newNotes" rows="2" class="debtLoginInput debtTextarea"></textarea>
+
+                <div id="addShortError" style="display: none" class="debtLoginError"></div>
+
+                <button type="button" class="debtBtn debtBtnDark debtLoginButton" onclick="submitShortDebt()">Add to the list</button>
+            </div>
+        </div>
+
+        <!-- Review checklist -->
+        <div id="reviewPanel" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeReview()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2>Review activity</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeReview()">X</button>
+                </div>
+                <p class="debtSheetHint">Everything the team has recorded, newest first. Tap to check it off.</p>
+                <div id="reviewList" class="debtReviewList"></div>
+            </div>
+        </div>
+
+        <!-- Long Debtor account statement + payment -->
+        <div id="accountPanel" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeAccount()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2 id="accountName">Account</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeAccount()">X</button>
+                </div>
+                <div id="accountBody"></div>
+            </div>
+        </div>
+
+        <!-- Product purchase history -->
+        <div id="productPanel" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeProductHistory()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2 id="productPanelName">Product</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeProductHistory()">X</button>
+                </div>
+                <p class="debtSheetHint">Last 3 purchases -- date, supplier, price.</p>
+                <div id="productPanelBody"></div>
+            </div>
+        </div>
+
+        <button type="button" id="addButton" class="fab" style="display: none" onclick="toggleAddShortForm()">+</button>
+
+        <div class="debtBottomNav">
+            <button type="button" class="debtBottomNavBtn active" data-view="debtors" onclick="setView('debtors')">Debtors</button>
+            <button type="button" class="debtBottomNavBtn" data-view="products" onclick="setView('products')">Products</button>
+        </div>
+    </div>
+
+    <script src="js/db.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
+        }
+    </script>
+</body>
+</html>

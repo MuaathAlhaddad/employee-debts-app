@@ -1,0 +1,3 @@
+node_modules/
+.claude_serve.js
+.DS_Store

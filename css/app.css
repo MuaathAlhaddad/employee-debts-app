@@ -1,0 +1,972 @@
+/* Fonts for the ledger look -- must stay the first rule in this file,
+   @import only takes effect before any other CSS. */
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+/* ---------- "The Chase List" -- ledger/paper aesthetic ----------
+   Ported from the sales-tracker project's Debts page redesign. This IS
+   the whole app now (not scoped under a wrapper div), so the palette
+   lives on :root and body directly. */
+
+:root {
+    --ink: #1b2430;
+    --paper: #f2ebdd;
+    --paper-dark: #e7dec9;
+    --rule: #c9bfa8;
+    --amber: #b8792a;
+    --red: #a73b2e;
+    --crimson: #7a1f1f;
+    --sage: #3f6b52;
+    --muted: #5b6472;
+    --whatsapp: #2e7d5b;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--paper-dark);
+    font-family: "Inter", Arial, sans-serif;
+    color: var(--ink);
+    /* Avoid the address-bar-hide jank on mobile browsers when the
+       keyboard opens/closes for search/amount inputs. */
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.debtSerif {
+    font-family: "Roboto Slab", serif;
+}
+
+.debtMono {
+    font-family: "IBM Plex Mono", monospace;
+}
+
+/* ----- shared inputs/buttons ----- */
+
+.debtLoginLabel {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 14px 0 6px;
+}
+
+.debtLoginInput {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    background: white;
+}
+
+.debtLoginInput:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+
+.debtTextarea {
+    resize: vertical;
+}
+
+.debtLoginError {
+    color: var(--crimson);
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.debtBtn {
+    border: none;
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+}
+
+.debtBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.debtBtnDark {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.debtBtnSage {
+    background: var(--sage);
+    color: white;
+}
+
+.debtBtnAmber {
+    background: var(--amber);
+    color: white;
+}
+
+.debtBtnCrimson {
+    background: transparent;
+    color: var(--crimson);
+    border: 1px solid var(--crimson);
+}
+
+.debtBtnGhost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--rule);
+}
+
+.debtBtnWhatsapp {
+    background: var(--whatsapp);
+    color: white;
+}
+
+.debtLoginButton {
+    width: 100%;
+    justify-content: center;
+    padding: 14px;
+    margin-top: 18px;
+    font-size: 15px;
+}
+
+/* ----- login screen ----- */
+
+.debtLoginWrap {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.debtLoginCard {
+    max-width: 380px;
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 28px;
+}
+
+.debtLoginTitle {
+    font-family: "Roboto Slab", serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+
+.debtLoginSub {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+}
+
+/* ----- main app shell ----- */
+
+.debtApp {
+    background: var(--paper);
+    max-width: 720px;
+    margin: 0 auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 18px 16px 90px;
+}
+
+.debtHeader {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+}
+
+.debtHeaderTop {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.debtTitle {
+    font-family: "Roboto Slab", serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.debtSnapshotTime {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.debtHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.debtHeaderActions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.debtHeaderLink {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    font-family: inherit;
+}
+
+.debtCountBadge {
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 999px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.debtStatRow {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.debtStatLabel {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.debtStatValue {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 30px;
+    font-weight: 600;
+}
+
+.debtChaseTodayPill {
+    display: inline-flex;
+    align-items: center;
+    color: var(--red);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ----- offline / sync status ----- */
+
+.debtSyncBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.debtOfflinePill {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    background: var(--crimson);
+    color: white;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+body.is-offline .debtOfflinePill {
+    display: inline-flex;
+}
+
+/* ----- bottom tab bar (Debtors / Products) ----- */
+
+.debtBottomNav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--ink);
+    display: flex;
+    z-index: 15;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.debtBottomNavBtn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: rgba(242, 235, 221, 0.55);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 12px 6px 10px;
+    cursor: pointer;
+}
+
+.debtBottomNavBtn.active {
+    color: var(--paper);
+}
+
+/* ----- search / filters ----- */
+
+.debtSearchBar {
+    margin-bottom: 12px;
+}
+
+.debtSearchBar input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: var(--paper-dark);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.debtSearchBar input:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+
+.debtTypeToggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.debtTypeOpt {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.debtTypeOpt.active {
+    background: var(--paper-dark);
+    color: var(--ink);
+    border-color: var(--ink);
+}
+
+.debtTabsRow {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+}
+
+.debtTab {
+    flex: none;
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.debtTab.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+}
+
+.debtTabCount {
+    opacity: 0.7;
+}
+
+/* ----- debt cards ----- */
+
+.debtList {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.debtCard {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    padding: 16px;
+}
+
+.debtCard.debtCard-aging {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 1px var(--amber);
+}
+
+.debtAgingFlag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fbeedb;
+    color: var(--amber);
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-bottom: 4px;
+}
+
+.debtCardTop {
+    display: flex;
+    gap: 14px;
+}
+
+.debtBadge {
+    flex: none;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.1;
+}
+
+.debtBadgeNum {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.debtBadgeLabel {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-top: 2px;
+    padding: 0 2px;
+}
+
+.debtBadge-ok {
+    border-color: var(--sage);
+    color: var(--sage);
+}
+
+.debtBadge-soon {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+.debtBadge-today,
+.debtBadge-over {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.debtBadge-none {
+    border-color: var(--rule);
+    color: var(--muted);
+    border-style: dashed;
+}
+
+.debtBadge-paid {
+    border-color: var(--sage);
+    color: var(--sage);
+}
+
+.debtBadge-dead {
+    border-color: var(--crimson);
+    color: var(--crimson);
+}
+
+.debtCardMain {
+    flex: 1;
+    min-width: 0;
+}
+
+.debtCardHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.debtTypePill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+}
+
+.debtTypePill-long {
+    background: #e3edf7;
+    color: #2563eb;
+}
+
+.debtTypePill-short {
+    background: #f2e6d0;
+    color: var(--amber);
+}
+
+.debtName {
+    font-family: "Roboto Slab", serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1.2;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+
+.debtAmount {
+    text-align: right;
+    flex: none;
+}
+
+.debtAmountValue {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.debtAmountSub {
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.debtMeta {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.debtPhone {
+    color: var(--sage);
+    text-decoration: none;
+}
+
+.debtLastLine {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.debtLog {
+    border-left: 2px solid var(--rule);
+    margin-top: 8px;
+    padding-left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.debtLogRow {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.debtLogTime {
+    color: var(--ink);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.debtActionRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.debtActionForm {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.debtActionForm input {
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.debtActionButtons {
+    display: flex;
+    gap: 8px;
+}
+
+.debtResolvedRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+}
+
+.debtResolvedLabel {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.debtResolvedLabel-paid {
+    color: var(--sage);
+}
+
+.debtResolvedLabel-dead {
+    color: var(--crimson);
+}
+
+/* ----- bottom sheets ----- */
+
+.debtSheetOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(27, 36, 48, 0.45);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 20;
+}
+
+.debtSheet {
+    background: var(--paper);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 20px 28px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.debtSheetHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.debtSheetHead h2 {
+    font-family: "Roboto Slab", serif;
+    font-size: 18px;
+    margin: 0;
+}
+
+.debtSheetClose {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.debtSheetHint {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0 0 12px;
+}
+
+.debtReviewList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.debtReviewRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    background: white;
+    border: 1px solid var(--ink);
+    border-radius: 12px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.debtReviewRow.reviewed {
+    background: var(--paper-dark);
+    border-color: var(--rule);
+    opacity: 0.7;
+}
+
+.debtReviewCheck {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+    background: white;
+}
+
+.debtReviewRow.reviewed .debtReviewCheck {
+    background: var(--sage);
+    border-color: var(--sage);
+}
+
+.debtReviewText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.debtReviewLine {
+    font-size: 13px;
+}
+
+.debtReviewMeta {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ----- account statement ----- */
+
+.acctBalance {
+    text-align: center;
+    padding: 14px 0 18px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 12px;
+}
+
+.acctBalanceLabel {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.acctBalanceValue {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 28px;
+    font-weight: 600;
+}
+
+.acctStatementList {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-height: 40vh;
+    overflow-y: auto;
+    margin-bottom: 14px;
+}
+
+.acctRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--paper-dark);
+    font-size: 13px;
+    gap: 10px;
+}
+
+.acctRowDesc {
+    min-width: 0;
+}
+
+.acctRowDate {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.acctRowAmount {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    flex: none;
+    text-align: right;
+}
+
+.acctRowAmount.negative {
+    color: var(--sage);
+}
+
+/* ----- product search ----- */
+
+.productList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.productCard {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 14px;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.productName {
+    font-family: "Roboto Slab", serif;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.productSku {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+    margin-top: 2px;
+}
+
+.productHistoryList {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.productHistoryRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--paper-dark);
+    font-size: 13px;
+    gap: 10px;
+}
+
+.productHistoryPrice {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.productHistorySupplier {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.productHistoryDate {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.emptyState {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    background: white;
+    border-radius: 16px;
+    border: 1px dashed var(--rule);
+}
+
+/* ----- floating add button ----- */
+
+.fab {
+    position: fixed;
+    bottom: 78px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 24px;
+    border: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    z-index: 16;
+}
+
+/* ----- loading indicator ----- */
+
+.loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    z-index: 30;
+}
+
+.loadingOverlay .spinner {
+    height: 100%;
+    width: 30%;
+    background: var(--ink);
+    animation: loadingBar 1s ease-in-out infinite;
+}
+
+@keyframes loadingBar {
+    0% {
+        margin-left: -30%;
+    }
+    100% {
+        margin-left: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .debtApp {
+        padding: 16px 14px 90px;
+    }
+}

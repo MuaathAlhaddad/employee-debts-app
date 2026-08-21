@@ -1,0 +1,16 @@
+{
+  "name": "Employee Debts & Product Search",
+  "short_name": "Debts",
+  "description": "Follow up on customer debts and look up product purchase prices.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e7dec9",
+  "theme_color": "#1b2430",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
