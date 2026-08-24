@@ -510,7 +510,7 @@ function debtCardHtml(d, canEdit) {
                     <button type="button" class="debtBtn debtBtnSage" onclick="openAction('${d.clientId}','pay')">Record payment</button>
                     <button type="button" class="debtBtn debtBtnAmber" onclick="openAction('${d.clientId}','due')">${d.dueDate ? "New promised date" : "Set due date"}</button>
                     ${wa ? `<a href="${wa}" target="_blank" rel="noopener noreferrer" class="debtBtn debtBtnWhatsapp">WhatsApp reminder</a>` : ""}
-                    ${isLong ? `<button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}')">View account</button>` : ""}
+                    ${isLong ? `<button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">View account</button>` : ""}
                     <button type="button" class="debtBtn debtBtnCrimson" onclick="submitDeadDebt('${d.clientId}')">Dead debt</button>
                 </div>`;
         }
@@ -521,7 +521,7 @@ function debtCardHtml(d, canEdit) {
                 ${canEdit ? `<button type="button" class="debtBtn debtBtnGhost" onclick="submitStatus('${d.clientId}','active')">Reopen</button>` : ""}
             </div>`;
     } else if (isLong) {
-        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}')">View account</button></div>`;
+        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">View account</button></div>`;
     }
 
     return `
@@ -537,7 +537,7 @@ function debtCardHtml(d, canEdit) {
                             <span class="debtTypePill debtTypePill-${d.type.toLowerCase()}">${typePill}</span>
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
                             ${isLong
-                                ? `<button type="button" class="debtName" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}')">${escapeHtml(d.clientName)}</button>`
+                                ? `<button type="button" class="debtName" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">${escapeHtml(d.clientName)}</button>`
                                 : `<div class="debtName">${escapeHtml(d.clientName)}</div>`}
                         </div>
                         <div class="debtAmount">
@@ -720,8 +720,13 @@ function submitShortDebt() {
 // the debtor list itself).
 // ============================================================
 
-function openAccount(clientId, clientName) {
-    APP.activeAccount = { clientId, clientName, statement: null };
+function openAccount(clientId, clientName, balance) {
+    // `balance` is the debtor's already-known outstanding amount (from
+    // the Debts Snapshot, via Daftra's summary_unpaid) -- shown as-is
+    // rather than recomputed from the last-30-days activity list below,
+    // since a running total over a partial window would be a confusingly
+    // wrong number for any debt older than 30 days.
+    APP.activeAccount = { clientId, clientName, balance, statement: null };
     document.getElementById("accountPanel").style.display = "flex";
     document.getElementById("accountName").textContent = clientName;
     document.getElementById("accountBody").innerHTML = `<div class="emptyState">Loading...</div>`;
@@ -751,8 +756,6 @@ function renderAccountSheet() {
     const canEdit = APP.employee.role === "edit";
 
     const rows = statement.entries
-        .slice()
-        .reverse()
         .map(
             (e) => `
             <div class="acctRow">
@@ -768,9 +771,10 @@ function renderAccountSheet() {
     document.getElementById("accountBody").innerHTML = `
         <div class="acctBalance">
             <div class="acctBalanceLabel">Balance</div>
-            <div class="acctBalanceValue">${money(statement.balance)}</div>
+            <div class="acctBalanceValue">${money(APP.activeAccount.balance)}</div>
         </div>
-        <div class="acctStatementList">${rows || '<div class="emptyState">No activity yet.</div>'}</div>
+        <div class="debtSheetHint">Last ${statement.periodDays} days of activity</div>
+        <div class="acctStatementList">${rows || '<div class="emptyState">No activity in the last ' + statement.periodDays + ' days.</div>'}</div>
         ${
             canEdit
                 ? `
@@ -802,7 +806,10 @@ function submitAccountPayment() {
             apiCall("addLongDebtorPayment", APP.employee.name, APP.employee.pin, clientId, amount, note)
                 .then(() => {
                     hideLoading();
-                    openAccount(clientId, APP.activeAccount.clientName);
+                    // Optimistic new balance -- doSync() below fetches the
+                    // real one right after; this just avoids a flash of
+                    // the stale pre-payment figure in the meantime.
+                    openAccount(clientId, APP.activeAccount.clientName, APP.activeAccount.balance - Number(amount));
                     doSync(false);
                 })
                 .catch((err) => {
