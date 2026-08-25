@@ -1,9 +1,14 @@
 // Caches the app shell (HTML/CSS/JS/icons) so the app can load offline.
 // Deliberately does NOT touch calls to the Employee Debts API (a
 // different origin, script.google.com) -- those are handled by the app's
-// own IndexedDB cache in js/db.js, not the service worker. Bumping
-// CACHE_NAME forces old cached files to be dropped on the next visit.
-const CACHE_NAME = "employee-debts-shell-v1";
+// own IndexedDB cache in js/db.js, not the service worker.
+//
+// BUMP THIS NUMBER on every push that changes index.html/css/js -- it's
+// the only thing that makes an already-installed phone drop its stale
+// cached shell and fetch the new files. Forgetting to bump it means the
+// update silently never reaches anyone who already has the app installed
+// (confirmed real gotcha, 2026-08-25).
+const CACHE_NAME = "employee-debts-shell-v2";
 
 const SHELL_FILES = [
     "./",
