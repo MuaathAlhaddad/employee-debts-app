@@ -18,7 +18,7 @@ const APP = {
     typeFilter: "all",
     query: "",
     expandedLog: null,
-    openAction: null, // { clientId, kind: 'note' | 'pay' | 'due' }
+    openAction: null, // { clientId, kind: 'pay' | 'invoice' }
     draft: {},
     productQuery: "",
     activeAccount: null, // { clientId, clientName, statement } while viewing a Long Debtor's account
@@ -66,12 +66,6 @@ function daysBetween(a, b) {
     return Math.round((d2 - d1) / 86400000);
 }
 
-function addDays(iso, n) {
-    const d = new Date(iso + "T00:00:00");
-    d.setDate(d.getDate() + n);
-    return d.toISOString().slice(0, 10);
-}
-
 function fmtDate(iso) {
     if (!iso) return "";
     const d = new Date(iso + "T00:00:00");
@@ -94,20 +88,6 @@ function timeAgo(iso) {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.round(hours / 24);
     return `${days}d ago`;
-}
-
-function dueInfo(d) {
-    if (d.status !== "active") {
-        return { label: d.status === "paid" ? "Paid" : "Dead debt", cls: "debtBadge-" + d.status };
-    }
-    if (!d.dueDate) return { label: "no date", cls: "debtBadge-none" };
-
-    const diff = daysBetween(todayStr(), d.dueDate);
-
-    if (diff > 3) return { label: `${diff}d left`, cls: "debtBadge-ok", diff };
-    if (diff > 0) return { label: `${diff}d left`, cls: "debtBadge-soon", diff };
-    if (diff === 0) return { label: "due today", cls: "debtBadge-today", diff };
-    return { label: `+${Math.abs(diff)}d over`, cls: "debtBadge-over", diff };
 }
 
 // ---------- online/offline indicator ----------
@@ -412,11 +392,10 @@ function renderDebtorsList() {
         list = list.filter((d) => d.type.toLowerCase() === APP.typeFilter);
     }
 
-    list = list.slice().sort((a, b) => {
-        const da = a.dueDate ? daysBetween(todayStr(), a.dueDate) : Infinity;
-        const db = b.dueDate ? daysBetween(todayStr(), b.dueDate) : Infinity;
-        return da - db;
-    });
+    // Biggest remaining balance first -- due-date-based ordering doesn't
+    // apply anymore now that due dates aren't tracked in the UI
+    // (2026-08-26).
+    list = list.slice().sort((a, b) => (b.amount - b.amountPaid) - (a.amount - a.amountPaid));
 
     const container = document.getElementById("debtsList");
     const empty = document.getElementById("debtsEmpty");
@@ -432,8 +411,9 @@ function renderDebtorsList() {
     empty.style.display = "none";
     // One bad record's data shouldn't be able to blank the entire list --
     // catch per-card so a single exception just skips that card instead
-    // of aborting the whole innerHTML assignment (see debtWaLink()'s
-    // comment for the real case that caused this).
+    // of aborting the whole innerHTML assignment (a non-string phone
+    // field once did exactly this before phone was removed from the
+    // card entirely, 2026-08-22/26).
     container.innerHTML = list
         .map((d) => {
             try {
@@ -446,52 +426,27 @@ function renderDebtorsList() {
         .join("");
 }
 
-function debtWaLink(d) {
-    // Daftra occasionally hands back a phone field as a number, not a
-    // string (confirmed 2026-08-22 -- a single non-string phone value
-    // was throwing here and silently blanking the ENTIRE debtor list,
-    // since one exception inside the render map aborted the whole
-    // innerHTML assignment). String() first, always.
-    const digits = String(d.phone || "").replace(/\D/g, "");
-    if (!digits) return null;
-
-    const remaining = d.amount - d.amountPaid;
-    const when = d.dueDate ? (d.dueDate === todayStr() ? "today" : `on ${fmtDate(d.dueDate)}`) : "soon";
-    const msg = `Hi ${d.clientName}, friendly reminder that your balance of ${money(remaining)} is due ${when}. Could you let us know when you can settle it? Thank you!`;
-
-    return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
-}
 
 function debtCardHtml(d, canEdit) {
-    const due = dueInfo(d);
     const remaining = d.amount - d.amountPaid;
-    const lastEntry = d.log && d.log.length ? d.log[d.log.length - 1] : null;
-    const logOpen = APP.expandedLog === d.clientId;
+    const pct = d.amount > 0 ? Math.min(100, Math.round((d.amountPaid / d.amount) * 100)) : 0;
     const action = APP.openAction && APP.openAction.clientId === d.clientId ? APP.openAction.kind : null;
-    const wa = debtWaLink(d);
     const typePill = d.type === "Short" ? "Notebook" : "Daftra";
     const isLong = d.type !== "Short";
+    const logOpen = APP.expandedLog === d.clientId;
+    const createdBy = d.log && d.log.length ? d.log[0].actor : "";
 
-    const metaBits = [
-        d.dateGiven ? `Given ${fmtDate(d.dateGiven)}` : "",
-        d.dueDate ? `Due ${fmtDate(d.dueDate)}` : "",
-        d.promiseCount > 0 ? `Rescheduled x${d.promiseCount}` : "",
-        d.phone ? `<a href="tel:${escapeAttr(d.phone)}" class="debtPhone">Tel: ${escapeHtml(d.phone)}</a>` : "",
-    ].filter(Boolean);
+    // "Client account" opens the real Daftra statement for a Long debtor;
+    // a Short debtor has no Daftra account, so it just expands their local
+    // follow-up history instead -- same underlying log data either way.
+    const accountOnclick = isLong
+        ? `openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})`
+        : `toggleDebtLog('${d.clientId}')`;
 
     let actionsHtml = "";
 
     if (d.status === "active" && canEdit) {
-        if (action === "note") {
-            actionsHtml = `
-                <div class="debtActionForm">
-                    <input type="text" id="draft-${d.clientId}" placeholder="What happened? (optional)" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
-                    <div class="debtActionButtons">
-                        <button type="button" class="debtBtn debtBtnSage" onclick="submitFollowUp('${d.clientId}')">Save</button>
-                        <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
-                    </div>
-                </div>`;
-        } else if (action === "pay") {
+        if (action === "pay") {
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Amount paid (up to ${money(remaining)})" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
@@ -500,24 +455,21 @@ function debtCardHtml(d, canEdit) {
                         <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
                     </div>
                 </div>`;
-        } else if (action === "due") {
+        } else if (action === "invoice") {
             actionsHtml = `
                 <div class="debtActionForm">
-                    <input type="date" id="draft-${d.clientId}" value="${escapeAttr(APP.draft[d.clientId] || d.dueDate || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
+                    <input type="number" id="draft-${d.clientId}" placeholder="Additional amount owed" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
                     <div class="debtActionButtons">
-                        <button type="button" class="debtBtn debtBtnAmber" onclick="submitDueDate('${d.clientId}')">Save date</button>
+                        <button type="button" class="debtBtn debtBtnDark" onclick="submitInvoice('${d.clientId}')">Add invoice</button>
                         <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
                     </div>
                 </div>`;
         } else {
             actionsHtml = `
                 <div class="debtActionRow">
-                    <button type="button" class="debtBtn debtBtnDark" onclick="openAction('${d.clientId}','note')">Chased today</button>
-                    <button type="button" class="debtBtn debtBtnSage" onclick="openAction('${d.clientId}','pay')">Record payment</button>
-                    <button type="button" class="debtBtn debtBtnAmber" onclick="openAction('${d.clientId}','due')">${d.dueDate ? "New promised date" : "Set due date"}</button>
-                    ${wa ? `<a href="${wa}" target="_blank" rel="noopener noreferrer" class="debtBtn debtBtnWhatsapp">WhatsApp reminder</a>` : ""}
-                    ${isLong ? `<button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">View account</button>` : ""}
-                    <button type="button" class="debtBtn debtBtnCrimson" onclick="submitDeadDebt('${d.clientId}')">Dead debt</button>
+                    <button type="button" class="debtBtn debtBtnPrimary" onclick="openAction('${d.clientId}','pay')">Add Payment</button>
+                    <button type="button" class="debtBtn debtBtnDark" onclick="openAction('${d.clientId}','invoice')">Add invoice</button>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button>
                 </div>`;
         }
     } else if (d.status !== "active") {
@@ -526,16 +478,15 @@ function debtCardHtml(d, canEdit) {
                 <span class="debtResolvedLabel debtResolvedLabel-${d.status}">${d.status === "paid" ? "Paid" : "Dead debt"}</span>
                 ${canEdit ? `<button type="button" class="debtBtn debtBtnGhost" onclick="submitStatus('${d.clientId}','active')">Reopen</button>` : ""}
             </div>`;
-    } else if (isLong) {
-        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">View account</button></div>`;
+    } else {
+        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button></div>`;
     }
 
     return `
         <div class="debtCard ${d.isAgingShort ? "debtCard-aging" : ""}">
             <div class="debtCardTop">
-                <div class="debtBadge ${due.cls}">
-                    <span class="debtBadgeNum">${due.diff !== undefined ? (due.diff < 0 ? "+" + Math.abs(due.diff) : due.diff) : "-"}</span>
-                    <span class="debtBadgeLabel">${escapeHtml(due.label)}</span>
+                <div class="debtBalanceRing" style="--pct: ${pct}">
+                    <span class="debtBalanceNum">${money(remaining)}</span>
                 </div>
                 <div class="debtCardMain">
                     <div class="debtCardHead">
@@ -543,21 +494,10 @@ function debtCardHtml(d, canEdit) {
                             <span class="debtTypePill debtTypePill-${d.type.toLowerCase()}">${typePill}</span>
                             ${d.creditor ? `<span class="debtCreditorPill">${escapeHtml(d.creditor)}</span>` : ""}
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
-                            ${isLong
-                                ? `<button type="button" class="debtName" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">${escapeHtml(d.clientName)}</button>`
-                                : `<div class="debtName">${escapeHtml(d.clientName)}</div>`}
-                        </div>
-                        <div class="debtAmount">
-                            <div class="debtAmountValue">${money(remaining)}</div>
-                            ${d.amountPaid > 0 ? `<div class="debtAmountSub">of ${money(d.amount)}</div>` : ""}
+                            <div class="debtName">${escapeHtml(d.clientName)}</div>
                         </div>
                     </div>
-                    <div class="debtMeta">${metaBits.join(" | ")}</div>
-                    ${
-                        lastEntry
-                            ? `<button type="button" class="debtLastLine" onclick="toggleDebtLog('${d.clientId}')">Last: ${escapeHtml(lastEntry.note)} - ${escapeHtml(lastEntry.actor)}, ${fmtDateTime(lastEntry.time)} ${logOpen ? "^" : "v"}</button>`
-                            : ""
-                    }
+                    ${actionsHtml}
                     ${
                         logOpen
                             ? `<div class="debtLog">${d.log
@@ -567,7 +507,7 @@ function debtCardHtml(d, canEdit) {
                                   .join("")}</div>`
                             : ""
                     }
-                    ${actionsHtml}
+                    ${createdBy ? `<div class="debtCreatedBy">Added by ${escapeHtml(createdBy)}</div>` : ""}
                 </div>
             </div>
         </div>`;
@@ -593,25 +533,6 @@ function closeAction() {
     render();
 }
 
-function submitFollowUp(clientId) {
-    const note = APP.draft[clientId] || "";
-    withOnlineCheck(
-        () => showError("You're offline -- connect to the internet to save a follow-up."),
-        () => {
-            apiCall("addDebtFollowUp", APP.employee.name, APP.employee.pin, clientId, note)
-                .then(() => {
-                    APP.openAction = null;
-                    delete APP.draft[clientId];
-                    doSync(true);
-                })
-                .catch((err) => {
-                    hideLoading();
-                    showError(err);
-                });
-        },
-    );
-}
-
 function submitPayment(clientId) {
     const amount = APP.draft[clientId];
     withOnlineCheck(
@@ -631,12 +552,18 @@ function submitPayment(clientId) {
     );
 }
 
-function submitDueDate(clientId) {
-    const newDate = APP.draft[clientId];
+// Increases what a debtor owes -- a local sheet update for a Short
+// (Notebook) debtor, a real new Daftra due invoice for a Long debtor
+// (owner's request, 2026-08-26: same "Add invoice" button either way).
+function submitInvoice(clientId) {
+    const amount = APP.draft[clientId];
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    const action = d && d.type === "Short" ? "addToShortDebt" : "addLongDebtorInvoice";
+
     withOnlineCheck(
-        () => showError("You're offline -- connect to the internet to reschedule."),
+        () => showError("You're offline -- connect to the internet to add an invoice."),
         () => {
-            apiCall("rescheduleDebtDueDate", APP.employee.name, APP.employee.pin, clientId, newDate)
+            apiCall(action, APP.employee.name, APP.employee.pin, clientId, amount)
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
@@ -664,13 +591,6 @@ function submitStatus(clientId, status) {
     );
 }
 
-function submitDeadDebt(clientId) {
-    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
-    const label = d ? `${d.clientName}'s remaining balance of ${money(d.amount - d.amountPaid)}` : "this debt";
-    if (!confirm(`Write off ${label} as dead debt?`)) return;
-    submitStatus(clientId, "dead");
-}
-
 // --- Add a short debt ---
 
 function toggleAddShortForm() {
@@ -683,7 +603,6 @@ function toggleAddShortForm() {
         document.getElementById("newPhone").value = "";
         document.getElementById("newAmount").value = "";
         document.getElementById("newDateGiven").value = todayStr();
-        document.getElementById("newDueDate").value = addDays(todayStr(), 7);
         document.getElementById("newNotes").value = "";
         document.getElementById("addShortError").style.display = "none";
 
@@ -700,7 +619,6 @@ function submitShortDebt() {
     const phone = document.getElementById("newPhone").value.trim();
     const amount = document.getElementById("newAmount").value;
     const dateGiven = document.getElementById("newDateGiven").value;
-    const dueDate = document.getElementById("newDueDate").value;
     const notes = document.getElementById("newNotes").value.trim();
     const creditor = document.getElementById("newCreditor").value;
     const errorBox = document.getElementById("addShortError");
@@ -713,7 +631,11 @@ function submitShortDebt() {
             errorBox.style.display = "block";
         },
         () => {
-            apiCall("addShortDebt", APP.employee.name, APP.employee.pin, name, amount, phone, dueDate, dateGiven, notes, creditor)
+            // Due date is left blank -- it's no longer tracked/shown
+            // anywhere in the UI (2026-08-26), but the API still expects
+            // a value in this position for addShortDebt()'s existing
+            // signature.
+            apiCall("addShortDebt", APP.employee.name, APP.employee.pin, name, amount, phone, "", dateGiven, notes, creditor)
                 .then(() => {
                     toggleAddShortForm();
                     doSync(true);
@@ -787,8 +709,8 @@ function renderAccountSheet() {
             <div class="acctBalanceLabel">Balance</div>
             <div class="acctBalanceValue">${money(APP.activeAccount.balance)}</div>
         </div>
-        <div class="debtSheetHint">Last ${statement.periodDays} days of activity</div>
-        <div class="acctStatementList">${rows || '<div class="emptyState">No activity in the last ' + statement.periodDays + ' days.</div>'}</div>
+        <div class="debtSheetHint">Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}</div>
+        <div class="acctStatementList">${rows || '<div class="emptyState">No activity recorded yet.</div>'}</div>
         ${
             canEdit
                 ? `

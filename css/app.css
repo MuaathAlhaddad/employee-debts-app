@@ -17,7 +17,6 @@
     --crimson: #7a1f1f;
     --sage: #3f6b52;
     --muted: #5b6472;
-    --whatsapp: #2e7d5b;
 }
 
 * {
@@ -107,26 +106,22 @@ body {
     color: white;
 }
 
-.debtBtnAmber {
-    background: var(--amber);
+/* The one action that should visually win out on a card -- Add Payment is
+   the most common thing an employee does here (owner's request,
+   2026-08-26: "more obvious to the user, with green color"). */
+.debtBtnPrimary {
+    background: var(--sage);
     color: white;
-}
-
-.debtBtnCrimson {
-    background: transparent;
-    color: var(--crimson);
-    border: 1px solid var(--crimson);
+    font-size: 14px;
+    font-weight: 700;
+    padding: 11px 18px;
+    flex: 1 1 auto;
 }
 
 .debtBtnGhost {
     background: transparent;
     color: var(--muted);
     border: 1px solid var(--rule);
-}
-
-.debtBtnWhatsapp {
-    background: var(--whatsapp);
-    color: white;
 }
 
 .debtLoginButton {
@@ -455,64 +450,39 @@ body.is-offline .debtOfflinePill {
     gap: 14px;
 }
 
-.debtBadge {
+/* Balance ring -- replaced the old due-date countdown badge (2026-08-26)
+   now that due dates aren't tracked in the UI. --pct (0-100, set inline
+   per card) is how much of the debt has been paid off so far. */
+.debtBalanceRing {
     flex: none;
-    width: 60px;
-    height: 60px;
+    width: 74px;
+    height: 74px;
     border-radius: 50%;
-    border: 2px solid var(--muted);
+    background: conic-gradient(var(--sage) calc(var(--pct) * 1%), var(--paper-dark) 0);
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    line-height: 1.1;
+    position: relative;
 }
 
-.debtBadgeNum {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 15px;
-    font-weight: 600;
+.debtBalanceRing::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    background: white;
 }
 
-.debtBadgeLabel {
-    font-size: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-top: 2px;
-    padding: 0 2px;
-}
-
-.debtBadge-ok {
-    border-color: var(--sage);
-    color: var(--sage);
-}
-
-.debtBadge-soon {
-    border-color: var(--amber);
-    color: var(--amber);
-}
-
-.debtBadge-today,
-.debtBadge-over {
-    border-color: var(--red);
+.debtBalanceNum {
+    position: relative;
+    z-index: 1;
     color: var(--red);
-}
-
-.debtBadge-none {
-    border-color: var(--rule);
-    color: var(--muted);
-    border-style: dashed;
-}
-
-.debtBadge-paid {
-    border-color: var(--sage);
-    color: var(--sage);
-}
-
-.debtBadge-dead {
-    border-color: var(--crimson);
-    color: var(--crimson);
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.15;
+    text-align: center;
+    padding: 0 4px;
 }
 
 .debtCardMain {
@@ -574,47 +544,10 @@ body.is-offline .debtOfflinePill {
     color: inherit;
 }
 
-.debtAmount {
-    text-align: right;
-    flex: none;
-}
-
-.debtAmountValue {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 17px;
-    font-weight: 600;
-}
-
-.debtAmountSub {
+.debtCreatedBy {
+    color: var(--muted);
     font-size: 10px;
-    color: var(--muted);
-}
-
-.debtMeta {
-    color: var(--muted);
-    font-size: 11px;
-    margin-top: 6px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.debtPhone {
-    color: var(--sage);
-    text-decoration: none;
-}
-
-.debtLastLine {
-    display: block;
-    background: none;
-    border: none;
-    padding: 0;
-    text-align: left;
-    color: var(--muted);
-    font-size: 11px;
-    margin-top: 6px;
-    cursor: pointer;
-    font-family: inherit;
+    margin-top: 10px;
 }
 
 .debtLog {
