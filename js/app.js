@@ -849,7 +849,15 @@ function renderProductsView() {
     }
 
     const all = (APP.data && APP.data.products) || [];
-    const matches = all.filter((p) => p.name.toLowerCase().includes(query) || (p.sku || "").toLowerCase().includes(query)).slice(0, 30);
+    // String()-coerce name/sku before comparing -- a Sheets-cell-sourced
+    // SKU that looks numeric (e.g. "2038") can come back from the API as
+    // an actual number rather than a string, and .toLowerCase() on a
+    // number threw here, silently killing the whole search (confirmed
+    // 2026-08-26). Fixed at the source too (Daftra.gs's getAllProducts()),
+    // but this stays as a second line of defense.
+    const matches = all
+        .filter((p) => String(p.name || "").toLowerCase().includes(query) || String(p.sku || "").toLowerCase().includes(query))
+        .slice(0, 30);
 
     if (matches.length === 0) {
         container.innerHTML = "";
