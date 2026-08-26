@@ -23,6 +23,7 @@ const APP = {
     productQuery: "",
     activeAccount: null, // { clientId, clientName, statement } while viewing a Long Debtor's account
     activeProduct: null, // { id, name, history } while viewing a product's price history
+    employeeNames: [], // [{name}] -- fetched once at the login screen, reused for the Creditor picker
 };
 
 const STORAGE_KEY = "employeeDebtsEmployee";
@@ -167,6 +168,7 @@ function showLogin() {
     apiCall("getEmployeeNames")
         .then((names) => {
             hideLoading();
+            APP.employeeNames = names;
             const select = document.getElementById("loginName");
             select.innerHTML = names.map((e) => `<option value="${escapeAttr(e.name)}">${escapeHtml(e.name)}</option>`).join("");
         })
@@ -535,6 +537,7 @@ function debtCardHtml(d, canEdit) {
                     <div class="debtCardHead">
                         <div>
                             <span class="debtTypePill debtTypePill-${d.type.toLowerCase()}">${typePill}</span>
+                            ${d.creditor ? `<span class="debtCreditorPill">${escapeHtml(d.creditor)}</span>` : ""}
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
                             ${isLong
                                 ? `<button type="button" class="debtName" onclick="openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})">${escapeHtml(d.clientName)}</button>`
@@ -679,6 +682,12 @@ function toggleAddShortForm() {
         document.getElementById("newDueDate").value = addDays(todayStr(), 7);
         document.getElementById("newNotes").value = "";
         document.getElementById("addShortError").style.display = "none";
+
+        const creditorSelect = document.getElementById("newCreditor");
+        creditorSelect.innerHTML =
+            `<option value="">Who gave this credit?</option>` +
+            APP.employeeNames.map((e) => `<option value="${escapeAttr(e.name)}">${escapeHtml(e.name)}</option>`).join("");
+        creditorSelect.value = APP.employee.name; // defaults to whoever's adding it, easy to change
     }
 }
 
@@ -689,6 +698,7 @@ function submitShortDebt() {
     const dateGiven = document.getElementById("newDateGiven").value;
     const dueDate = document.getElementById("newDueDate").value;
     const notes = document.getElementById("newNotes").value.trim();
+    const creditor = document.getElementById("newCreditor").value;
     const errorBox = document.getElementById("addShortError");
 
     errorBox.style.display = "none";
@@ -699,7 +709,7 @@ function submitShortDebt() {
             errorBox.style.display = "block";
         },
         () => {
-            apiCall("addShortDebt", APP.employee.name, APP.employee.pin, name, amount, phone, dueDate, dateGiven, notes)
+            apiCall("addShortDebt", APP.employee.name, APP.employee.pin, name, amount, phone, dueDate, dateGiven, notes, creditor)
                 .then(() => {
                     toggleAddShortForm();
                     doSync(true);

@@ -8,7 +8,7 @@
 // cached shell and fetch the new files. Forgetting to bump it means the
 // update silently never reaches anyone who already has the app installed
 // (confirmed real gotcha, 2026-08-25).
-const CACHE_NAME = "employee-debts-shell-v2";
+const CACHE_NAME = "employee-debts-shell-v3";
 
 const SHELL_FILES = [
     "./",

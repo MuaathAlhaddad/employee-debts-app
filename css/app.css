@@ -548,6 +548,19 @@ body.is-offline .debtOfflinePill {
     color: var(--amber);
 }
 
+.debtCreditorPill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    background: #e8e3f2;
+    color: #6d4fa8;
+}
+
 .debtName {
     font-family: "Roboto Slab", serif;
     font-weight: 700;
