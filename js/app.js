@@ -427,9 +427,23 @@ function renderDebtorsList() {
 }
 
 
+// A fixed font-size overflowed the balance ring for any debtor owing a
+// large amount -- scale down as the formatted number gets longer instead.
+// Tuned against the ring's ~62px usable width (74px ring minus the 6px
+// inset on each side); wraps to 2 lines for anything longer than that
+// still allows.
+function debtBalanceFontSize_(text) {
+    if (text.length > 10) return 10;
+    if (text.length > 8) return 11;
+    if (text.length > 6) return 13;
+    return 15;
+}
+
 function debtCardHtml(d, canEdit) {
     const remaining = d.amount - d.amountPaid;
     const pct = d.amount > 0 ? Math.min(100, Math.round((d.amountPaid / d.amount) * 100)) : 0;
+    const balanceText = money(remaining);
+    const balanceFontSize = debtBalanceFontSize_(balanceText);
     const action = APP.openAction && APP.openAction.clientId === d.clientId ? APP.openAction.kind : null;
     const typePill = d.type === "Short" ? "Notebook" : "Daftra";
     const isLong = d.type !== "Short";
@@ -486,7 +500,7 @@ function debtCardHtml(d, canEdit) {
         <div class="debtCard ${d.isAgingShort ? "debtCard-aging" : ""}">
             <div class="debtCardTop">
                 <div class="debtBalanceRing" style="--pct: ${pct}">
-                    <span class="debtBalanceNum">${money(remaining)}</span>
+                    <span class="debtBalanceNum" style="font-size: ${balanceFontSize}px">${escapeHtml(balanceText)}</span>
                 </div>
                 <div class="debtCardMain">
                     <div class="debtCardHead">
