@@ -8,7 +8,7 @@
 // cached shell and fetch the new files. Forgetting to bump it means the
 // update silently never reaches anyone who already has the app installed
 // (confirmed real gotcha, 2026-08-25).
-const CACHE_NAME = "employee-debts-shell-v6";
+const CACHE_NAME = "employee-debts-shell-v7";
 
 const SHELL_FILES = [
     "./",
@@ -24,7 +24,21 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener("install", (event) => {
-    event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_FILES)));
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) =>
+            Promise.all(
+                // cache.addAll()'s default fetches don't bypass the
+                // browser's ordinary HTTP cache (or an intermediate CDN
+                // edge's) -- confirmed 2026-08-26 as a real bug: a stale
+                // response served just once here gets baked into this
+                // cache PERMANENTLY, since the fetch handler below never
+                // revalidates once there's a cache hit. { cache: "reload" }
+                // forces every install-time fetch to actually hit the
+                // origin instead of trusting any cached copy in between.
+                SHELL_FILES.map((url) => fetch(url, { cache: "reload" }).then((response) => cache.put(url, response))),
+            ),
+        ),
+    );
     self.skipWaiting();
 });
 
