@@ -394,7 +394,15 @@ function renderDebtorsList() {
 
     let list = debtsAllList();
 
-    if (APP.tab === "today") {
+    // A search query bypasses the tab entirely -- otherwise a paid-off
+    // Short Debtor (kept around on purpose so a repeat debt reopens the
+    // same record, see addShortDebt()) would only turn up while sitting on
+    // the "Paid" tab, defeating the point of being able to just search for
+    // them (owner's request, 2026-08-26). Their card still correctly shows
+    // a zero remaining balance since amountPaid == amount once paid.
+    if (APP.query) {
+        list = list.filter((d) => d.clientName.toLowerCase().includes(APP.query));
+    } else if (APP.tab === "today") {
         list = list.filter((d) => d.status === "active" && d.lastFollowUp !== todayStr());
     } else {
         list = list.filter((d) => d.status === APP.tab);
@@ -402,10 +410,6 @@ function renderDebtorsList() {
 
     if (APP.typeFilter !== "all") {
         list = list.filter((d) => d.type.toLowerCase() === APP.typeFilter);
-    }
-
-    if (APP.query) {
-        list = list.filter((d) => d.clientName.toLowerCase().includes(APP.query));
     }
 
     list = list.slice().sort((a, b) => {
