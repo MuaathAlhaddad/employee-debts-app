@@ -820,11 +820,16 @@ body.is-offline .debtOfflinePill {
     font-size: 15px;
 }
 
-.productSku {
+.productLastPurchase {
     font-size: 11px;
     color: var(--muted);
+    margin-top: 4px;
+}
+
+.productLastPurchasePrice {
+    color: var(--sage);
+    font-weight: 700;
     font-family: "IBM Plex Mono", monospace;
-    margin-top: 2px;
 }
 
 .productHistoryList {

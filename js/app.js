@@ -24,6 +24,7 @@ const APP = {
     activeAccount: null, // { clientId, clientName, statement } while viewing a Long Debtor's account
     activeProduct: null, // { id, name, history } while viewing a product's price history
     employeeNames: [], // [{name}] -- fetched once at the login screen, reused for the Creditor picker
+    productPriceCache: {}, // productId -> last purchase entry (or null), filled in lazily per search
 };
 
 const STORAGE_KEY = "employeeDebtsEmployee";
@@ -811,15 +812,65 @@ function renderProductsView() {
     }
 
     empty.style.display = "none";
+    // Last price/supplier is a real live Daftra lookup per product (not
+    // pre-synced like name/SKU -- see getDaftraProductPurchaseHistory's
+    // header comment for why), so it's only fetched for the first few
+    // visible results instead of every match. A broad search could return
+    // up to 30 products; firing that many lookups at once would be slow
+    // and hammer the API (owner's request, 2026-08-27).
+    const LAST_PRICE_LIMIT = 8;
+
     container.innerHTML = matches
         .map(
-            (p) => `
+            (p, i) => `
         <button type="button" class="productCard" onclick="openProductHistory('${p.id}','${escapeAttr(p.name)}')">
             <div class="productName">${escapeHtml(p.name)}</div>
-            ${p.sku ? `<div class="productSku">${escapeHtml(p.sku)}</div>` : ""}
+            ${i < LAST_PRICE_LIMIT ? `<div class="productLastPurchase" id="productLastPurchase_${p.id}">Loading last price...</div>` : ""}
         </button>`,
         )
         .join("");
+
+    matches.slice(0, LAST_PRICE_LIMIT).forEach((p) => loadProductLastPurchase_(p.id));
+}
+
+// Cached per product id for the session -- once fetched, re-rendering the
+// same search (or searching again later) doesn't re-fetch it.
+function loadProductLastPurchase_(productId) {
+    const el = document.getElementById(`productLastPurchase_${productId}`);
+    if (!el) return;
+
+    if (Object.prototype.hasOwnProperty.call(APP.productPriceCache, productId)) {
+        renderProductLastPurchase_(el, APP.productPriceCache[productId]);
+        return;
+    }
+
+    if (!navigator.onLine) {
+        el.textContent = "";
+        return;
+    }
+
+    apiCall("getProductPurchaseHistory", APP.employee.name, APP.employee.pin, productId)
+        .then((history) => {
+            const last = (history && history[0]) || null;
+            APP.productPriceCache[productId] = last;
+            // Re-query the element rather than reusing `el` -- the user
+            // may have typed a different search (or scrolled a new list
+            // into place) by the time this resolves.
+            const freshEl = document.getElementById(`productLastPurchase_${productId}`);
+            if (freshEl) renderProductLastPurchase_(freshEl, last);
+        })
+        .catch(() => {
+            const freshEl = document.getElementById(`productLastPurchase_${productId}`);
+            if (freshEl) freshEl.textContent = "";
+        });
+}
+
+function renderProductLastPurchase_(el, last) {
+    if (!last) {
+        el.textContent = "No purchase history";
+        return;
+    }
+    el.innerHTML = `<span class="productLastPurchasePrice">${money(last.purchasePrice)}</span>${last.supplierName ? ` - ${escapeHtml(last.supplierName)}` : ""}`;
 }
 
 function openProductHistory(productId, productName) {
