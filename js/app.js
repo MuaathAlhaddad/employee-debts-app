@@ -197,6 +197,23 @@ function showMain() {
     document.getElementById("mainScreen").style.display = "block";
     document.getElementById("whoAmI").textContent = APP.employee.name;
 
+    // employeeNames only gets fetched inside showLogin() otherwise -- a
+    // returning session (restored from localStorage in init()) skips
+    // straight to showMain() and never calls showLogin() at all, leaving
+    // this empty for the whole session and the Creditor picker showing
+    // nothing but its placeholder (confirmed 2026-08-27). Fetch it here
+    // too, once, if it's not already loaded.
+    if (!APP.employeeNames.length) {
+        apiCall("getEmployeeNames")
+            .then((names) => {
+                APP.employeeNames = names;
+            })
+            .catch(() => {
+                // Non-fatal -- the Creditor picker just stays empty until
+                // the next successful sync/reload.
+            });
+    }
+
     const canEdit = APP.employee.role === "edit";
     document.getElementById("addButton").style.display = canEdit ? "" : "none";
     document.getElementById("reviewButton").style.display = canEdit ? "inline-flex" : "none";
