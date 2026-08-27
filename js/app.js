@@ -482,9 +482,13 @@ function debtCardHtml(d, canEdit) {
                     </div>
                 </div>`;
         } else if (action === "invoice") {
+            const creditorOptions = APP.employeeNames
+                .map((e) => `<option value="${escapeAttr(e.name)}" ${e.name === (d.creditor || APP.employee.name) ? "selected" : ""}>${escapeHtml(e.name)}</option>`)
+                .join("");
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Additional amount owed" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
+                    <select id="draftCreditor-${d.clientId}">${creditorOptions}</select>
                     <div class="debtActionButtons">
                         <button type="button" class="debtBtn debtBtnDark" onclick="submitInvoice('${d.clientId}')">Add invoice</button>
                         <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
@@ -584,12 +588,18 @@ function submitPayment(clientId) {
 function submitInvoice(clientId) {
     const amount = APP.draft[clientId];
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
-    const action = d && d.type === "Short" ? "addToShortDebt" : "addLongDebtorInvoice";
+    const isShort = d && d.type === "Short";
+    const action = isShort ? "addToShortDebt" : "addLongDebtorInvoice";
+    // Creditor picker only exists on the Short-debtor form (owner's
+    // request, 2026-08-27) -- Daftra debtors no longer have "Add invoice"
+    // at all, so this element won't be present for them.
+    const creditorEl = document.getElementById(`draftCreditor-${clientId}`);
+    const params = isShort ? [clientId, amount, "", creditorEl ? creditorEl.value : ""] : [clientId, amount];
 
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to add an invoice."),
         () => {
-            apiCall(action, APP.employee.name, APP.employee.pin, clientId, amount)
+            apiCall(action, APP.employee.name, APP.employee.pin, ...params)
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];

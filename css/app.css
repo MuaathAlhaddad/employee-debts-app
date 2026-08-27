@@ -587,13 +587,15 @@ body.is-offline .debtOfflinePill {
     gap: 8px;
 }
 
-.debtActionForm input {
+.debtActionForm input,
+.debtActionForm select {
     padding: 10px 12px;
     border: 1px solid var(--rule);
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
     box-sizing: border-box;
+    width: 100%;
 }
 
 .debtActionButtons {
