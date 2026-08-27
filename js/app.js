@@ -31,7 +31,7 @@ const STORAGE_KEY = "employeeDebtsEmployee";
 // ---------- generic helpers ----------
 
 function money(value) {
-    return Number(value || 0).toLocaleString();
+    return Math.round(Number(value || 0)).toLocaleString();
 }
 
 function escapeHtml(str) {
