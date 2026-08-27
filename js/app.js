@@ -464,7 +464,14 @@ function debtCardHtml(d, canEdit) {
 
     let actionsHtml = "";
 
-    if (d.status === "active" && canEdit) {
+    // Add Payment / Add invoice removed for Daftra (Long) debtors --
+    // owner's request, 2026-08-27: real Daftra money actions only happen
+    // through "Client account" (the real statement + payment there), not
+    // these local-tracking shortcuts. Short (Notebook) debtors keep all
+    // three since they have no Daftra account to go through instead.
+    if (isLong && d.status === "active") {
+        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button></div>`;
+    } else if (d.status === "active" && canEdit) {
         if (action === "pay") {
             actionsHtml = `
                 <div class="debtActionForm">
