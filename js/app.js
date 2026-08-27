@@ -318,6 +318,10 @@ function renderDebtorsView() {
     const todayCount = list.filter((d) => d.status === "active" && d.lastFollowUp !== todayStr()).length;
 
     document.getElementById("debtsTotal").textContent = money(APP.data.debts.total);
+    // Outstanding total is edit-role only (owner's request, 2026-08-27) --
+    // view-only employees can still see individual debtor balances, just
+    // not the shop-wide total.
+    document.getElementById("debtsOutstandingBlock").style.display = APP.employee.role === "edit" ? "" : "none";
     document.getElementById("debtsSnapshotTime").textContent = APP.data.debts.snapshotTime
         ? "Daftra last pulled " + APP.data.debts.snapshotTime
         : "";
