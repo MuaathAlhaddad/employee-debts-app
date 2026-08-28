@@ -17,6 +17,7 @@
     --crimson: #7a1f1f;
     --sage: #3f6b52;
     --muted: #5b6472;
+    --whatsapp: #2e7d5b;
 }
 
 * {
@@ -122,6 +123,25 @@ body {
     background: transparent;
     color: var(--muted);
     border: 1px solid var(--rule);
+}
+
+.debtBtnWhatsapp {
+    background: var(--whatsapp);
+    color: white;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.whatsappPromptMessage {
+    background: var(--paper-dark);
+    border-radius: 10px;
+    padding: 14px;
+    margin: 12px 0;
+    font-size: 15px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    direction: rtl;
+    text-align: right;
 }
 
 .debtLoginButton {

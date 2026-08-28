@@ -25,6 +25,7 @@ const APP = {
     activeProduct: null, // { id, name, history } while viewing a product's price history
     employeeNames: [], // [{name}] -- fetched once at the login screen, reused for the Creditor picker
     productPriceCache: {}, // productId -> last purchase entry (or null), filled in lazily per search
+    pendingWhatsapp: null, // { clientName, phone, message } while the post-transaction WhatsApp prompt is open
 };
 
 const STORAGE_KEY = "employeeDebtsEmployee";
@@ -580,8 +581,52 @@ function closeAction() {
     render();
 }
 
+// ============================================================
+// WhatsApp follow-up -- after a payment is recorded or a debt is added,
+// prompt to tell the client their new balance (owner's request,
+// 2026-08-27). Uses a wa.me deep link rather than sending automatically:
+// that needs the official WhatsApp Business API (Meta verification,
+// pre-approved templates, per-conversation cost), a much bigger lift for
+// two fixed templates -- this opens WhatsApp with the message already
+// typed, the employee just reviews and taps Send there.
+// ============================================================
+
+function buildDebtAddedMessage_(addedAmount, newTotal) {
+    return `باقي عليك من فاتورة اليوم ${money(addedAmount)}، اجمالي عليك ${money(newTotal)}`;
+}
+
+function buildPaymentMessage_(paidAmount, newRemaining) {
+    return `واصل ${money(paidAmount)} وباقي ${money(newRemaining)}`;
+}
+
+function buildWhatsappLink_(phone, message) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (!digits) return null;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}
+
+// No phone on file -> skip the prompt entirely rather than showing a dead
+// end with no way to actually send anything.
+function promptWhatsappFollowUp_(clientName, phone, message) {
+    const link = buildWhatsappLink_(phone, message);
+    if (!link) return;
+
+    APP.pendingWhatsapp = { clientName, phone, message };
+    document.getElementById("whatsappPromptName").textContent = clientName;
+    document.getElementById("whatsappPromptMessage").textContent = message;
+    document.getElementById("whatsappPromptLink").href = link;
+    document.getElementById("whatsappPrompt").style.display = "flex";
+}
+
+function closeWhatsappPrompt() {
+    APP.pendingWhatsapp = null;
+    document.getElementById("whatsappPrompt").style.display = "none";
+}
+
 function submitPayment(clientId) {
     const amount = APP.draft[clientId];
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to record a payment."),
         () => {
@@ -589,6 +634,10 @@ function submitPayment(clientId) {
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    if (d) {
+                        const newRemaining = Math.max(0, d.amount - d.amountPaid - Number(amount));
+                        promptWhatsappFollowUp_(d.clientName, d.phone, buildPaymentMessage_(amount, newRemaining));
+                    }
                     doSync(true);
                 })
                 .catch((err) => {
@@ -620,6 +669,10 @@ function submitInvoice(clientId) {
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    if (isShort) {
+                        const newTotal = d.amount - d.amountPaid + Number(amount);
+                        promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, newTotal));
+                    }
                     doSync(true);
                 })
                 .catch((err) => {
@@ -795,10 +848,14 @@ function submitAccountPayment() {
             apiCall("addLongDebtorPayment", APP.employee.name, APP.employee.pin, clientId, amount, note)
                 .then(() => {
                     hideLoading();
+                    const newBalance = APP.activeAccount.balance - Number(amount);
+                    const clientName = APP.activeAccount.clientName;
+                    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+                    if (d) promptWhatsappFollowUp_(clientName, d.phone, buildPaymentMessage_(amount, newBalance));
                     // Optimistic new balance -- doSync() below fetches the
                     // real one right after; this just avoids a flash of
                     // the stale pre-payment figure in the meantime.
-                    openAccount(clientId, APP.activeAccount.clientName, APP.activeAccount.balance - Number(amount));
+                    openAccount(clientId, clientName, newBalance);
                     doSync(false);
                 })
                 .catch((err) => {

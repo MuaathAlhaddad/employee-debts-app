@@ -166,6 +166,20 @@
             </div>
         </div>
 
+        <!-- WhatsApp follow-up prompt, shown right after a payment/debt is recorded -->
+        <div id="whatsappPrompt" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeWhatsappPrompt()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2 id="whatsappPromptName">Send follow-up</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeWhatsappPrompt()">X</button>
+                </div>
+                <p class="debtSheetHint">Review before sending -- this opens WhatsApp with the message ready, you still tap Send there.</p>
+                <div id="whatsappPromptMessage" class="whatsappPromptMessage"></div>
+                <a id="whatsappPromptLink" href="#" target="_blank" rel="noopener noreferrer" class="debtBtn debtBtnWhatsapp debtLoginButton" onclick="closeWhatsappPrompt()">Send via WhatsApp</a>
+                <button type="button" class="debtBtn debtBtnGhost debtLoginButton" onclick="closeWhatsappPrompt()">Skip</button>
+            </div>
+        </div>
+
         <button type="button" id="addButton" class="fab" style="display: none" onclick="toggleAddShortForm()">+</button>
 
         <div class="debtBottomNav">
