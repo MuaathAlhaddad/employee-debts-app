@@ -642,14 +642,23 @@ function closeWhatsappPrompt() {
     document.getElementById("whatsappPrompt").style.display = "none";
 }
 
+// Local sheet-only update for a Short (Notebook) debtor; a real Daftra
+// payment for a Long debtor (confirmed 2026-08-28: this always called
+// the local-only recordDebtPayment regardless of type, so "Add Payment"
+// on a Daftra client's card looked like it worked -- Debts Snapshot
+// updated -- but never actually touched Daftra. Matches the branching
+// submitInvoice() already does per type).
 function submitPayment(clientId) {
     const amount = APP.draft[clientId];
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    const isShort = d && d.type === "Short";
+    const action = isShort ? "recordDebtPayment" : "addLongDebtorPayment";
+    const params = isShort ? [clientId, amount] : [clientId, amount, ""];
 
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to record a payment."),
         () => {
-            apiCall("recordDebtPayment", APP.employee.name, APP.employee.pin, clientId, amount)
+            apiCall(action, APP.employee.name, APP.employee.pin, ...params)
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
