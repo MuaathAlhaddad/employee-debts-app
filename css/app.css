@@ -337,6 +337,32 @@ body.is-offline .debtOfflinePill {
     padding-bottom: env(safe-area-inset-bottom);
 }
 
+.syncToast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: white;
+    border-radius: 999px;
+    padding: 9px 16px;
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    font-weight: 700;
+    z-index: 25;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+
+.syncToastItem-ok {
+    color: #8fe0b4;
+}
+
+.syncToastItem-fail {
+    color: #ff9d9d;
+}
+
 .debtBottomNavBtn {
     flex: 1;
     background: none;

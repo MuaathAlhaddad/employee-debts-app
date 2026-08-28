@@ -642,6 +642,29 @@ function closeWhatsappPrompt() {
     document.getElementById("whatsappPrompt").style.display = "none";
 }
 
+// ============================================================
+// Sync status toast -- shows exactly what saved where after a write
+// (owner's request, 2026-08-28, after a Daftra-side failure went
+// unnoticed: the app looked like it worked because the Google Sheet
+// update alone is enough to make a card look up to date). parts:
+// [{ label, ok }].
+// ============================================================
+
+let syncToastTimer_ = null;
+
+function showSyncToast_(parts) {
+    const toast = document.getElementById("syncToast");
+    toast.innerHTML = parts
+        .map((p) => `<span class="syncToastItem-${p.ok ? "ok" : "fail"}">${p.ok ? "✓" : "✗"} ${escapeHtml(p.label)}</span>`)
+        .join("");
+    toast.style.display = "flex";
+
+    clearTimeout(syncToastTimer_);
+    syncToastTimer_ = setTimeout(() => {
+        toast.style.display = "none";
+    }, 5000);
+}
+
 // Local sheet-only update for a Short (Notebook) debtor; a real Daftra
 // payment for a Long debtor (confirmed 2026-08-28: this always called
 // the local-only recordDebtPayment regardless of type, so "Add Payment"
@@ -659,9 +682,14 @@ function submitPayment(clientId) {
         () => showError("You're offline -- connect to the internet to record a payment."),
         () => {
             apiCall(action, APP.employee.name, APP.employee.pin, ...params)
-                .then(() => {
+                .then((result) => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    showSyncToast_(
+                        isShort
+                            ? [{ label: "Google Sheet", ok: true }]
+                            : [{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }],
+                    );
                     if (d) {
                         const newRemaining = Math.max(0, d.amount - d.amountPaid - Number(amount));
                         promptWhatsappFollowUp_(d.clientName, d.phone, buildPaymentMessage_(amount, newRemaining));
@@ -695,9 +723,14 @@ function submitInvoice(clientId) {
         () => showError("You're offline -- connect to the internet to add an invoice."),
         () => {
             apiCall(action, APP.employee.name, APP.employee.pin, ...params)
-                .then(() => {
+                .then((result) => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    showSyncToast_(
+                        isShort
+                            ? [{ label: "Google Sheet", ok: true }]
+                            : [{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }],
+                    );
                     if (d) {
                         const newTotal = d.amount - d.amountPaid + Number(amount);
                         promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, newTotal));
@@ -875,8 +908,9 @@ function submitAccountPayment() {
         () => showError("You're offline -- connect to the internet to record a payment."),
         () => {
             apiCall("addLongDebtorPayment", APP.employee.name, APP.employee.pin, clientId, amount, note)
-                .then(() => {
+                .then((result) => {
                     hideLoading();
+                    showSyncToast_([{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }]);
                     const newBalance = APP.activeAccount.balance - Number(amount);
                     const clientName = APP.activeAccount.clientName;
                     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));

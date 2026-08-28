@@ -180,6 +180,11 @@
             </div>
         </div>
 
+        <!-- Sync status toast -- shows what actually saved where after a
+             write action (Google Sheet / Daftra), so a Daftra-side
+             failure is never silent. -->
+        <div id="syncToast" class="syncToast" style="display: none"></div>
+
         <button type="button" id="addButton" class="fab" style="display: none" onclick="toggleAddShortForm()">+</button>
 
         <div class="debtBottomNav">
