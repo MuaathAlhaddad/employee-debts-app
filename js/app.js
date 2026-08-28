@@ -482,14 +482,12 @@ function debtCardHtml(d, canEdit) {
 
     let actionsHtml = "";
 
-    // Add Payment / Add invoice removed for Daftra (Long) debtors --
-    // owner's request, 2026-08-27: real Daftra money actions only happen
-    // through "Client account" (the real statement + payment there), not
-    // these local-tracking shortcuts. Short (Notebook) debtors keep all
-    // three since they have no Daftra account to go through instead.
-    if (isLong && d.status === "active") {
-        actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button></div>`;
-    } else if (d.status === "active" && canEdit) {
+    // Add Payment / Add invoice restored for Daftra (Long) debtors
+    // (owner's request, 2026-08-28 -- briefly removed on 2026-08-27).
+    // Both types now get the same three actions; only the Creditor picker
+    // on the "Add invoice" form stays Short-only (isShort check below),
+    // since that concept doesn't apply to a real Daftra invoice.
+    if (d.status === "active" && canEdit) {
         if (action === "pay") {
             actionsHtml = `
                 <div class="debtActionForm">
@@ -500,13 +498,16 @@ function debtCardHtml(d, canEdit) {
                     </div>
                 </div>`;
         } else if (action === "invoice") {
-            const creditorOptions = APP.employeeNames
-                .map((e) => `<option value="${escapeAttr(e.name)}" ${e.name === (d.creditor || APP.employee.name) ? "selected" : ""}>${escapeHtml(e.name)}</option>`)
-                .join("");
+            const isShort = !isLong;
+            const creditorOptions = isShort
+                ? APP.employeeNames
+                      .map((e) => `<option value="${escapeAttr(e.name)}" ${e.name === (d.creditor || APP.employee.name) ? "selected" : ""}>${escapeHtml(e.name)}</option>`)
+                      .join("")
+                : "";
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Additional amount owed" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
-                    <select id="draftCreditor-${d.clientId}">${creditorOptions}</select>
+                    ${isShort ? `<select id="draftCreditor-${d.clientId}">${creditorOptions}</select>` : ""}
                     <div class="debtActionButtons">
                         <button type="button" class="debtBtn debtBtnDark" onclick="submitInvoice('${d.clientId}')">Add invoice</button>
                         <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
@@ -668,15 +669,16 @@ function submitPayment(clientId) {
 
 // Increases what a debtor owes -- a local sheet update for a Short
 // (Notebook) debtor, a real new Daftra due invoice for a Long debtor
-// (owner's request, 2026-08-26: same "Add invoice" button either way).
+// (owner's request, 2026-08-26: same "Add invoice" button either way;
+// briefly Short-only 2026-08-27, restored for Long debtors 2026-08-28).
 function submitInvoice(clientId) {
     const amount = APP.draft[clientId];
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const isShort = d && d.type === "Short";
     const action = isShort ? "addToShortDebt" : "addLongDebtorInvoice";
-    // Creditor picker only exists on the Short-debtor form (owner's
-    // request, 2026-08-27) -- Daftra debtors no longer have "Add invoice"
-    // at all, so this element won't be present for them.
+    // Creditor picker only exists on the Short-debtor form -- that
+    // concept doesn't apply to a real Daftra invoice, so this element
+    // won't be present on a Long debtor's card.
     const creditorEl = document.getElementById(`draftCreditor-${clientId}`);
     const params = isShort ? [clientId, amount, "", creditorEl ? creditorEl.value : ""] : [clientId, amount];
 
@@ -687,7 +689,7 @@ function submitInvoice(clientId) {
                 .then(() => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
-                    if (isShort) {
+                    if (d) {
                         const newTotal = d.amount - d.amountPaid + Number(amount);
                         promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, newTotal));
                     }
