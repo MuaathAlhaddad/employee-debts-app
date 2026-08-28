@@ -599,8 +599,26 @@ function buildPaymentMessage_(paidAmount, newRemaining) {
     return `واصل ${money(paidAmount)} وباقي ${money(newRemaining)}`;
 }
 
+// wa.me needs country-code + number with NO leading "+" or "00" -- e.g.
+// "966537680173", not "00966537680173" or "0537680173". Confirmed
+// 2026-08-28: a real number stored as "00966537680173" (Saudi's
+// international dialing prefix, "00", left on) made WhatsApp itself
+// reject it as "missing a country code or has the wrong one".
+function normalizePhoneForWhatsapp_(phone) {
+    let digits = String(phone || "").replace(/\D/g, "");
+    if (!digits) return "";
+
+    if (digits.startsWith("00")) {
+        digits = digits.slice(2); // international-dialing prefix, not part of the number
+    } else if (digits.startsWith("0")) {
+        digits = "966" + digits.slice(1); // local format, no country code -- assume Saudi Arabia
+    }
+
+    return digits;
+}
+
 function buildWhatsappLink_(phone, message) {
-    const digits = String(phone || "").replace(/\D/g, "");
+    const digits = normalizePhoneForWhatsapp_(phone);
     if (!digits) return null;
     return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
