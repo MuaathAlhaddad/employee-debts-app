@@ -936,6 +936,7 @@ function toggleReconciliation_() {
             const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
             if (d) d.needsReconciliation = result.needsReconciliation;
             renderAccountSheet();
+            renderDebtorsList();
         })
         .catch((err) => alert("Could not update flag: " + err.message));
 }
