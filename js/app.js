@@ -607,23 +607,27 @@ function buildPaymentMessage_(paidAmount, newRemaining) {
 // just right after recording something. Uses the OS share sheet
 // (WhatsApp, SMS, copy, etc. -- whatever the device offers) rather than a
 // WhatsApp-only link, since this isn't necessarily going to the debtor.
+// WhatsApp-only (owner's request, 2026-08-28) -- straight to the
+// debtor's own chat if a phone is on file (same normalization as the
+// automatic follow-up prompt), otherwise a plain wa.me link with no
+// number, which opens WhatsApp's own contact picker instead of failing.
 function shareDebtorBalance_(clientId) {
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     if (!d) return;
 
     const remaining = d.amount - d.amountPaid;
-    const text = `${d.clientName} - اجمالي عليك ${money(remaining)}`;
+    const text = `اجمالي عليك: ${money(remaining)}`;
+    const digits = normalizePhoneForWhatsapp_(d.phone);
+    // wa.me needs an actual number in the path -- an empty segment
+    // doesn't behave as "no contact". api.whatsapp.com/send with no
+    // "phone" param is WhatsApp's own documented way to open with a
+    // message ready and no target chat picked, landing on the contact
+    // picker instead.
+    const link = digits
+        ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 
-    if (navigator.share) {
-        navigator.share({ text }).catch(() => {}); // user closing the share sheet also rejects -- not an error
-    } else if (navigator.clipboard) {
-        navigator.clipboard
-            .writeText(text)
-            .then(() => showSyncToast_([{ label: "Copied to clipboard", ok: true }]))
-            .catch(() => showError("Couldn't share or copy on this device."));
-    } else {
-        showError("Sharing isn't supported on this device.");
-    }
+    window.open(link, "_blank", "noopener,noreferrer");
 }
 
 // wa.me needs country-code + number with NO leading "+" or "00" -- e.g.
