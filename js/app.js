@@ -542,6 +542,7 @@ function debtCardHtml(d, canEdit) {
                         <div>
                             <span class="debtTypePill debtTypePill-${d.type.toLowerCase()}">${typePill}</span>
                             ${d.creditor ? `<span class="debtCreditorPill">${escapeHtml(d.creditor)}</span>` : ""}
+                            ${d.needsReconciliation ? `<span class="debtReconcilePill">⚠️ May not match Daftra</span>` : ""}
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
                             <div class="debtName">${escapeHtml(d.clientName)}</div>
                         </div>
@@ -888,6 +889,9 @@ function closeAccount() {
 function renderAccountSheet() {
     const statement = APP.activeAccount.statement;
     const canEdit = APP.employee.role === "edit";
+    const clientId = APP.activeAccount.clientId;
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    const needsReconciliation = !!(d && d.needsReconciliation);
 
     const rows = statement.entries
         .map(
@@ -916,10 +920,24 @@ function renderAccountSheet() {
             <input type="number" id="acctPayAmount" class="debtLoginInput" placeholder="Amount" />
             <input type="text" id="acctPayNote" class="debtLoginInput" placeholder="Note (optional)" style="margin-top: 8px" />
             <button type="button" class="debtBtn debtBtnSage debtLoginButton" onclick="submitAccountPayment()">Record payment in Daftra</button>
+            <button type="button" class="debtBtn debtLoginButton" style="margin-top: 8px" onclick="toggleReconciliation_()">${
+                needsReconciliation ? "✓ Clear reconciliation flag" : "⚠️ Flag as needs reconciliation"
+            }</button>
             `
                 : ""
         }
     `;
+}
+
+function toggleReconciliation_() {
+    const clientId = APP.activeAccount.clientId;
+    apiCall("toggleReconciliationFlag", APP.employee.name, APP.employee.pin, clientId)
+        .then((result) => {
+            const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+            if (d) d.needsReconciliation = result.needsReconciliation;
+            renderAccountSheet();
+        })
+        .catch((err) => alert("Could not update flag: " + err.message));
 }
 
 function submitAccountPayment() {

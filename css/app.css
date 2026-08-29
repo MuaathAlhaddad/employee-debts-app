@@ -598,6 +598,19 @@ body.is-offline .debtOfflinePill {
     color: #6d4fa8;
 }
 
+.debtReconcilePill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    background: #f7e3e0;
+    color: var(--red);
+}
+
 .debtName {
     font-family: "Roboto Slab", serif;
     font-weight: 700;
