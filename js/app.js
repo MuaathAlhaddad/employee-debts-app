@@ -545,6 +545,7 @@ function debtCardHtml(d, canEdit) {
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
                             <div class="debtName">${escapeHtml(d.clientName)}</div>
                         </div>
+                        <button type="button" class="debtShareBtn" onclick="shareDebtorBalance_('${d.clientId}')" aria-label="Share balance">📤</button>
                     </div>
                     ${actionsHtml}
                     ${
@@ -598,6 +599,31 @@ function buildDebtAddedMessage_(addedAmount, newTotal) {
 
 function buildPaymentMessage_(paidAmount, newRemaining) {
     return `واصل ${money(paidAmount)} وباقي ${money(newRemaining)}`;
+}
+
+// On-demand share button on every card -- separate from the automatic
+// post-transaction WhatsApp prompt above, this lets an employee share a
+// debtor's CURRENT balance at any time (owner's request, 2026-08-28), not
+// just right after recording something. Uses the OS share sheet
+// (WhatsApp, SMS, copy, etc. -- whatever the device offers) rather than a
+// WhatsApp-only link, since this isn't necessarily going to the debtor.
+function shareDebtorBalance_(clientId) {
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    if (!d) return;
+
+    const remaining = d.amount - d.amountPaid;
+    const text = `${d.clientName} - اجمالي عليك ${money(remaining)}`;
+
+    if (navigator.share) {
+        navigator.share({ text }).catch(() => {}); // user closing the share sheet also rejects -- not an error
+    } else if (navigator.clipboard) {
+        navigator.clipboard
+            .writeText(text)
+            .then(() => showSyncToast_([{ label: "Copied to clipboard", ok: true }]))
+            .catch(() => showError("Couldn't share or copy on this device."));
+    } else {
+        showError("Sharing isn't supported on this device.");
+    }
 }
 
 // wa.me needs country-code + number with NO leading "+" or "00" -- e.g.

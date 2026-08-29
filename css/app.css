@@ -547,6 +547,23 @@ body.is-offline .debtOfflinePill {
     gap: 10px;
 }
 
+.debtShareBtn {
+    flex: none;
+    background: none;
+    border: none;
+    font-size: 17px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: var(--muted);
+    opacity: 0.75;
+}
+
+.debtShareBtn:hover,
+.debtShareBtn:active {
+    opacity: 1;
+}
+
 .debtTypePill {
     display: inline-block;
     font-size: 10px;
