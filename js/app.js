@@ -488,7 +488,21 @@ function debtCardHtml(d, canEdit) {
     // on the "Add invoice" form stays Short-only (isShort check below),
     // since that concept doesn't apply to a real Daftra invoice.
     if (d.status === "active" && canEdit) {
-        if (action === "pay") {
+        if (action === "menu") {
+            actionsHtml = `
+                <div class="debtActionRow">
+                    <button type="button" class="debtBtn debtBtnPrimary" onclick="openAction('${d.clientId}','pay')">Add Payment</button>
+                    <button type="button" class="debtBtn debtBtnDark" onclick="openAction('${d.clientId}','invoice')">Add invoice</button>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
+                </div>`;
+        } else if (action === "more") {
+            actionsHtml = `
+                <div class="debtActionRow">
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="toggleReconciliationCard_('${d.clientId}')">${d.needsReconciliation ? "✓ Clear reconciliation flag" : "⚠️ Flag as needs reconciliation"}</button>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
+                </div>`;
+        } else if (action === "pay") {
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Amount paid (up to ${money(remaining)})" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
@@ -516,9 +530,8 @@ function debtCardHtml(d, canEdit) {
         } else {
             actionsHtml = `
                 <div class="debtActionRow">
-                    <button type="button" class="debtBtn debtBtnPrimary" onclick="openAction('${d.clientId}','pay')">Add Payment</button>
-                    <button type="button" class="debtBtn debtBtnDark" onclick="openAction('${d.clientId}','invoice')">Add invoice</button>
-                    <button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button>
+                    <button type="button" class="debtIconBtn" onclick="openAction('${d.clientId}','menu')" aria-label="Add payment or invoice">+</button>
+                    <button type="button" class="debtIconBtn" onclick="openAction('${d.clientId}','more')" aria-label="More options">&#8942;</button>
                 </div>`;
         }
     } else if (d.status !== "active") {
@@ -582,6 +595,17 @@ function openAction(clientId, kind) {
 function closeAction() {
     APP.openAction = null;
     render();
+}
+
+function toggleReconciliationCard_(clientId) {
+    apiCall("toggleReconciliationFlag", APP.employee.name, APP.employee.pin, clientId)
+        .then((result) => {
+            const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+            if (d) d.needsReconciliation = result.needsReconciliation;
+            APP.openAction = null;
+            render();
+        })
+        .catch((err) => showError(err));
 }
 
 // ============================================================

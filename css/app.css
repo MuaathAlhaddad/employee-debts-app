@@ -656,6 +656,28 @@ body.is-offline .debtOfflinePill {
     margin-top: 12px;
 }
 
+.debtIconBtn {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.debtIconBtn:active {
+    background: var(--paper-dark);
+}
+
 .debtActionForm {
     margin-top: 12px;
     display: flex;
