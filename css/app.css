@@ -895,6 +895,35 @@ body.is-offline .debtOfflinePill {
     color: var(--sage);
 }
 
+.acctEditBtn {
+    flex: none;
+    background: none;
+    border: none;
+    font-size: 13px;
+    padding: 2px 4px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.acctEditBtn:hover,
+.acctEditBtn:active {
+    opacity: 1;
+}
+
+.acctRowEditing {
+    align-items: center;
+}
+
+.acctEditInput {
+    width: 90px;
+    padding: 6px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: "IBM Plex Mono", monospace;
+    box-sizing: border-box;
+}
+
 /* ----- product search ----- */
 
 .productList {

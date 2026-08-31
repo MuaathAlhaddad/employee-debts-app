@@ -22,6 +22,7 @@ const APP = {
     draft: {},
     productQuery: "",
     activeAccount: null, // { clientId, clientName, statement } while viewing a Long Debtor's account
+    editingEntryId: null, // id of the one account-statement entry currently showing its inline amount-edit form
     activeProduct: null, // { id, name, history } while viewing a product's price history
     employeeNames: [], // [{name}] -- fetched once at the login screen, reused for the Creditor picker
     productPriceCache: {}, // productId -> last purchase entry (or null), filled in lazily per search
@@ -498,9 +499,30 @@ function debtCardHtml(d, canEdit) {
         } else if (action === "more") {
             actionsHtml = `
                 <div class="debtActionRow">
-                    <button type="button" class="debtBtn debtBtnGhost" onclick="toggleReconciliationCard_('${d.clientId}')">${d.needsReconciliation ? "✓ Clear reconciliation flag" : "⚠️ Flag as needs reconciliation"}</button>
+                    ${
+                        isLong
+                            ? `<button type="button" class="debtBtn debtBtnGhost" onclick="toggleReconciliationCard_('${d.clientId}')">${d.needsReconciliation ? "✓ Clear reconciliation flag" : "⚠️ Flag as needs reconciliation"}</button>`
+                            : `<button type="button" class="debtBtn debtBtnGhost" onclick="openAction('${d.clientId}','editShort')">✏️ Edit details</button>`
+                    }
                     <button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button>
                     <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
+                </div>`;
+        } else if (action === "editShort") {
+            actionsHtml = `
+                <div class="debtActionForm">
+                    <input type="text" id="editName-${d.clientId}" placeholder="Name" value="${escapeAttr(d.clientName)}" />
+                    <input type="number" id="editAmount-${d.clientId}" placeholder="Amount owed" value="${escapeAttr(d.amount)}" />
+                    <input type="number" id="editAmountPaid-${d.clientId}" placeholder="Amount paid" value="${escapeAttr(d.amountPaid)}" />
+                    <input type="tel" id="editPhone-${d.clientId}" placeholder="Phone (optional)" value="${escapeAttr(d.phone || "")}" />
+                    <input type="date" id="editDueDate-${d.clientId}" placeholder="Due date" value="${escapeAttr(d.dueDate || "")}" />
+                    <input type="date" id="editDateGiven-${d.clientId}" placeholder="Date given" value="${escapeAttr(d.dateGiven || "")}" />
+                    <select id="editCreditor-${d.clientId}">
+                        ${APP.employeeNames.map((e) => `<option value="${escapeAttr(e.name)}" ${e.name === (d.creditor || "") ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}
+                    </select>
+                    <div class="debtActionButtons">
+                        <button type="button" class="debtBtn debtBtnSage" onclick="submitEditShort('${d.clientId}')">Save</button>
+                        <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">Cancel</button>
+                    </div>
                 </div>`;
         } else if (action === "pay") {
             actionsHtml = `
@@ -800,6 +822,36 @@ function submitInvoice(clientId) {
     );
 }
 
+// Overwrites a Short debtor's core fields directly -- name, amount owed,
+// amount paid, phone, dates, creditor -- to correct a mistake in what's
+// on the row (owner's request, 2026-08-30), as opposed to "Add invoice"/
+// "Add Payment" which only ever adjust the totals by a delta.
+function submitEditShort(clientId) {
+    const name = document.getElementById(`editName-${clientId}`).value;
+    const amount = document.getElementById(`editAmount-${clientId}`).value;
+    const amountPaid = document.getElementById(`editAmountPaid-${clientId}`).value;
+    const phone = document.getElementById(`editPhone-${clientId}`).value;
+    const dueDate = document.getElementById(`editDueDate-${clientId}`).value;
+    const dateGiven = document.getElementById(`editDateGiven-${clientId}`).value;
+    const creditor = document.getElementById(`editCreditor-${clientId}`).value;
+
+    withOnlineCheck(
+        () => showError("You're offline -- connect to the internet to save changes."),
+        () => {
+            apiCall("editShortDebt", APP.employee.name, APP.employee.pin, clientId, name, amount, amountPaid, phone, dueDate, dateGiven, creditor)
+                .then(() => {
+                    APP.openAction = null;
+                    showSyncToast_([{ label: "Google Sheet", ok: true }]);
+                    doSync(true);
+                })
+                .catch((err) => {
+                    hideLoading();
+                    showError(err);
+                });
+        },
+    );
+}
+
 function submitStatus(clientId, status) {
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to make this change."),
@@ -907,6 +959,7 @@ function openAccount(clientId, clientName, balance) {
 
 function closeAccount() {
     APP.activeAccount = null;
+    APP.editingEntryId = null;
     document.getElementById("accountPanel").style.display = "none";
 }
 
@@ -917,17 +970,32 @@ function renderAccountSheet() {
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const needsReconciliation = !!(d && d.needsReconciliation);
 
+    const editingId = APP.editingEntryId;
+
     const rows = statement.entries
-        .map(
-            (e) => `
+        .map((e) => {
+            if (canEdit && String(editingId) === String(e.id)) {
+                return `
+                <div class="acctRow acctRowEditing">
+                    <div class="acctRowDesc">
+                        <div>${escapeHtml(e.description)}</div>
+                        <div class="acctRowDate">${escapeHtml(String(e.date || ""))}</div>
+                    </div>
+                    <input type="number" id="acctEditAmount-${e.id}" class="acctEditInput" value="${Math.abs(e.amount)}" />
+                    <button type="button" class="debtIconBtn" onclick="submitEditEntry('${e.id}','${e.type}')" aria-label="Save">✓</button>
+                    <button type="button" class="debtIconBtn" onclick="APP.editingEntryId=null; renderAccountSheet();" aria-label="Cancel">&times;</button>
+                </div>`;
+            }
+            return `
             <div class="acctRow">
                 <div class="acctRowDesc">
                     <div>${escapeHtml(e.description)}</div>
                     <div class="acctRowDate">${escapeHtml(String(e.date || ""))}</div>
                 </div>
                 <div class="acctRowAmount ${e.amount < 0 ? "negative" : ""}">${e.amount < 0 ? "-" : ""}${money(Math.abs(e.amount))}</div>
-            </div>`,
-        )
+                ${canEdit ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
+            </div>`;
+        })
         .join("");
 
     document.getElementById("accountBody").innerHTML = `
@@ -963,6 +1031,47 @@ function toggleReconciliation_() {
             renderDebtorsList();
         })
         .catch((err) => alert("Could not update flag: " + err.message));
+}
+
+// Corrects the amount on one specific past invoice or payment, in Daftra
+// itself -- owner's request, 2026-08-30/31. "invoice" entries go through
+// editLongDebtorInvoice; "invoice_payment" and "client_payment" entries
+// are the same underlying Daftra record under two different names (see
+// the server-side comment), both handled by editLongDebtorPayment.
+function submitEditEntry(entryId, entryType) {
+    const clientId = APP.activeAccount.clientId;
+    const clientName = APP.activeAccount.clientName;
+    const input = document.getElementById(`acctEditAmount-${entryId}`);
+    const amount = input.value;
+    const action = entryType === "invoice" ? "editLongDebtorInvoice" : "editLongDebtorPayment";
+
+    if (!Number(amount) || Number(amount) <= 0) {
+        alert("Enter an amount greater than zero.");
+        return;
+    }
+
+    withOnlineCheck(
+        () => showError("You're offline -- connect to the internet to save changes."),
+        () => {
+            apiCall(action, APP.employee.name, APP.employee.pin, clientId, entryId, amount)
+                .then((result) => {
+                    APP.editingEntryId = null;
+                    showSyncToast_([{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }]);
+                    return apiCall("syncBundle", APP.employee.name, APP.employee.pin);
+                })
+                .then((bundle) => {
+                    APP.data = bundle;
+                    dbSet("bundle", bundle);
+                    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+                    openAccount(clientId, clientName, d ? d.amount - d.amountPaid : APP.activeAccount.balance);
+                    render();
+                })
+                .catch((err) => {
+                    hideLoading();
+                    showError(err);
+                });
+        },
+    );
 }
 
 function submitAccountPayment() {
