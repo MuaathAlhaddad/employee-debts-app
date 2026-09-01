@@ -630,25 +630,6 @@ body.is-offline .debtOfflinePill {
     margin-top: 10px;
 }
 
-.debtLog {
-    border-left: 2px solid var(--rule);
-    margin-top: 8px;
-    padding-left: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.debtLogRow {
-    font-size: 11px;
-    color: var(--muted);
-}
-
-.debtLogTime {
-    color: var(--ink);
-    font-family: "IBM Plex Mono", monospace;
-}
-
 .debtActionRow {
     display: flex;
     flex-wrap: wrap;
@@ -912,6 +893,23 @@ body.is-offline .debtOfflinePill {
 
 .acctRowEditing {
     align-items: center;
+}
+
+.acctRowLog {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 11px 0;
+}
+
+.acctRowLog .acctRowDesc > div:first-child {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+}
+
+.acctRowLog .acctRowDate {
+    font-size: 11px;
 }
 
 .acctEditInput {

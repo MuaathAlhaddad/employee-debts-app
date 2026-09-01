@@ -17,7 +17,6 @@ const APP = {
     tab: "today",
     typeFilter: "all",
     query: "",
-    expandedLog: null,
     openAction: null, // { clientId, kind: 'pay' | 'invoice' }
     draft: {},
     productQuery: "",
@@ -471,15 +470,15 @@ function debtCardHtml(d, canEdit) {
     const action = APP.openAction && APP.openAction.clientId === d.clientId ? APP.openAction.kind : null;
     const typePill = d.type === "Short" ? "Notebook" : "Daftra";
     const isLong = d.type !== "Short";
-    const logOpen = APP.expandedLog === d.clientId;
     const createdBy = d.log && d.log.length ? d.log[0].actor : "";
 
-    // "Client account" opens the real Daftra statement for a Long debtor;
-    // a Short debtor has no Daftra account, so it just expands their local
-    // follow-up history instead -- same underlying log data either way.
-    const accountOnclick = isLong
-        ? `openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})`
-        : `toggleDebtLog('${d.clientId}')`;
+    // "Client account" opens the same overlay panel for both types
+    // (owner's request, 2026-08-31: the old inline expansion for Short
+    // debtors was a cramped one-line-per-entry dump, hard to read) -- a
+    // Long debtor's shows their real Daftra statement, a Short debtor's
+    // shows their local follow-up history, formatted the same way. See
+    // openAccount()/renderAccountSheet() for the branch.
+    const accountOnclick = `openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})`;
 
     let actionsHtml = "";
 
@@ -584,24 +583,10 @@ function debtCardHtml(d, canEdit) {
                         <button type="button" class="debtShareBtn" onclick="shareDebtorBalance_('${d.clientId}')" aria-label="Share balance">📤</button>
                     </div>
                     ${actionsHtml}
-                    ${
-                        logOpen
-                            ? `<div class="debtLog">${d.log
-                                  .slice()
-                                  .reverse()
-                                  .map((e) => `<div class="debtLogRow"><span class="debtLogTime">${fmtDateTime(e.time)}</span> | ${escapeHtml(e.actor)} - ${escapeHtml(e.note)}</div>`)
-                                  .join("")}</div>`
-                            : ""
-                    }
                     ${createdBy ? `<div class="debtCreatedBy">Added by ${escapeHtml(createdBy)}</div>` : ""}
                 </div>
             </div>
         </div>`;
-}
-
-function toggleDebtLog(clientId) {
-    APP.expandedLog = APP.expandedLog === clientId ? null : clientId;
-    render();
 }
 
 function openAction(clientId, kind) {
@@ -932,14 +917,34 @@ function submitShortDebt() {
 // ============================================================
 
 function openAccount(clientId, clientName, balance) {
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    const isLong = d ? d.type !== "Short" : true;
+
     // `balance` is the debtor's already-known outstanding amount (from
     // the Debts Snapshot, via Daftra's summary_unpaid) -- shown as-is
     // rather than recomputed from the last-30-days activity list below,
     // since a running total over a partial window would be a confusingly
     // wrong number for any debt older than 30 days.
-    APP.activeAccount = { clientId, clientName, balance, statement: null };
+    APP.activeAccount = { clientId, clientName, balance, statement: null, isLong };
     document.getElementById("accountPanel").style.display = "flex";
     document.getElementById("accountName").textContent = clientName;
+
+    // A Short debtor has no Daftra account -- their "Client account" is
+    // just their own already-loaded local follow-up log, formatted the
+    // same way as a Long debtor's Daftra statement (owner's request,
+    // 2026-08-31: the old inline one-line-per-entry expansion was hard to
+    // read). No API call needed, so this works offline too.
+    if (!isLong) {
+        APP.activeAccount.statement = {
+            entries: (d.log || [])
+                .slice()
+                .reverse()
+                .map((e) => ({ id: e.id, time: e.time, actor: e.actor, description: e.note })),
+        };
+        renderAccountSheet();
+        return;
+    }
+
     document.getElementById("accountBody").innerHTML = `<div class="emptyState">Loading...</div>`;
 
     if (!navigator.onLine) {
@@ -967,6 +972,7 @@ function renderAccountSheet() {
     const statement = APP.activeAccount.statement;
     const canEdit = APP.employee.role === "edit";
     const clientId = APP.activeAccount.clientId;
+    const isLong = APP.activeAccount.isLong;
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const needsReconciliation = !!(d && d.needsReconciliation);
 
@@ -974,6 +980,15 @@ function renderAccountSheet() {
 
     const rows = statement.entries
         .map((e) => {
+            if (!isLong) {
+                return `
+                <div class="acctRow acctRowLog">
+                    <div class="acctRowDesc">
+                        <div>${escapeHtml(e.description)}</div>
+                        <div class="acctRowDate">${escapeHtml(fmtDateTime(e.time))} · ${escapeHtml(e.actor)}</div>
+                    </div>
+                </div>`;
+            }
             if (canEdit && String(editingId) === String(e.id)) {
                 return `
                 <div class="acctRow acctRowEditing">
@@ -1003,10 +1018,14 @@ function renderAccountSheet() {
             <div class="acctBalanceLabel">Balance</div>
             <div class="acctBalanceValue">${money(APP.activeAccount.balance)}</div>
         </div>
-        <div class="debtSheetHint">Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}</div>
+        <div class="debtSheetHint">${
+            isLong
+                ? `Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}`
+                : `${statement.entries.length} follow-up${statement.entries.length === 1 ? "" : "s"} logged`
+        }</div>
         <div class="acctStatementList">${rows || '<div class="emptyState">No activity recorded yet.</div>'}</div>
         ${
-            canEdit
+            canEdit && isLong
                 ? `
             <div class="debtLoginLabel">Add payment</div>
             <input type="number" id="acctPayAmount" class="debtLoginInput" placeholder="Amount" />
