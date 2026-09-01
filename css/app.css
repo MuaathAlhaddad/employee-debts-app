@@ -852,7 +852,7 @@ body.is-offline .debtOfflinePill {
     padding: 9px 0;
     border-bottom: 1px solid var(--paper-dark);
     font-size: 13px;
-    gap: 10px;
+    gap: 18px;
 }
 
 .acctRowDesc {
@@ -865,15 +865,28 @@ body.is-offline .debtOfflinePill {
     font-family: "IBM Plex Mono", monospace;
 }
 
+.acctRowAmountBox {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
 .acctRowAmount {
     font-family: "IBM Plex Mono", monospace;
-    font-weight: 600;
-    flex: none;
+    font-weight: 700;
     text-align: right;
 }
 
 .acctRowAmount.negative {
     color: var(--sage);
+}
+
+.acctRowRemaining {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
 }
 
 .acctEditBtn {

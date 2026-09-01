@@ -1007,7 +1007,10 @@ function renderAccountSheet() {
                     <div>${escapeHtml(e.description)}</div>
                     <div class="acctRowDate">${escapeHtml(String(e.date || ""))}</div>
                 </div>
-                <div class="acctRowAmount ${e.amount < 0 ? "negative" : ""}">${e.amount < 0 ? "-" : ""}${money(Math.abs(e.amount))}</div>
+                <div class="acctRowAmountBox">
+                    <div class="acctRowAmount ${e.amount < 0 ? "negative" : ""}">${e.amount < 0 ? "-" : ""}${money(Math.abs(e.amount))}</div>
+                    ${e.remaining != null ? `<div class="acctRowRemaining">${money(e.remaining)}</div>` : ""}
+                </div>
                 ${canEdit ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
             </div>`;
         })
