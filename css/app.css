@@ -908,22 +908,6 @@ body.is-offline .debtOfflinePill {
     align-items: center;
 }
 
-.acctRowLog {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
-    padding: 11px 0;
-}
-
-.acctRowLog .acctRowDesc > div:first-child {
-    font-size: 14px;
-    line-height: 1.45;
-    color: var(--ink);
-}
-
-.acctRowLog .acctRowDate {
-    font-size: 11px;
-}
 
 .acctEditInput {
     width: 90px;

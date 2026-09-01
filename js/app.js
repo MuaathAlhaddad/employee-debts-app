@@ -928,23 +928,6 @@ function openAccount(clientId, clientName, balance) {
     APP.activeAccount = { clientId, clientName, balance, statement: null, isLong };
     document.getElementById("accountPanel").style.display = "flex";
     document.getElementById("accountName").textContent = clientName;
-
-    // A Short debtor has no Daftra account -- their "Client account" is
-    // just their own already-loaded local follow-up log, formatted the
-    // same way as a Long debtor's Daftra statement (owner's request,
-    // 2026-08-31: the old inline one-line-per-entry expansion was hard to
-    // read). No API call needed, so this works offline too.
-    if (!isLong) {
-        APP.activeAccount.statement = {
-            entries: (d.log || [])
-                .slice()
-                .reverse()
-                .map((e) => ({ id: e.id, time: e.time, actor: e.actor, description: e.note })),
-        };
-        renderAccountSheet();
-        return;
-    }
-
     document.getElementById("accountBody").innerHTML = `<div class="emptyState">Loading...</div>`;
 
     if (!navigator.onLine) {
@@ -952,7 +935,15 @@ function openAccount(clientId, clientName, balance) {
         return;
     }
 
-    apiCall("getLongDebtorAccount", APP.employee.name, APP.employee.pin, clientId)
+    // A Short debtor has no Daftra account -- their "Client account" reads
+    // from the separate Short Debtor Transactions ledger instead (owner's
+    // request, 2026-08-31: wanted the same bold-amount/running-balance
+    // treatment Long debtors get, which the old free-text follow-up log
+    // can't reliably provide -- see getShortDebtorTransactions()'s
+    // server-side comment).
+    const action = isLong ? "getLongDebtorAccount" : "getShortDebtorTransactions";
+
+    apiCall(action, APP.employee.name, APP.employee.pin, clientId)
         .then((statement) => {
             APP.activeAccount.statement = statement;
             renderAccountSheet();
@@ -978,23 +969,19 @@ function renderAccountSheet() {
 
     const editingId = APP.editingEntryId;
 
+    // Short entries carry an ISO timestamp (needs formatting); Long
+    // entries come from Daftra already formatted ("2025-12-11" etc.) --
+    // shown as-is.
     const rows = statement.entries
         .map((e) => {
-            if (!isLong) {
-                return `
-                <div class="acctRow acctRowLog">
-                    <div class="acctRowDesc">
-                        <div>${escapeHtml(e.description)}</div>
-                        <div class="acctRowDate">${escapeHtml(fmtDateTime(e.time))} · ${escapeHtml(e.actor)}</div>
-                    </div>
-                </div>`;
-            }
-            if (canEdit && String(editingId) === String(e.id)) {
+            const dateLabel = isLong ? String(e.date || "") : fmtDateTime(e.date);
+
+            if (canEdit && isLong && String(editingId) === String(e.id)) {
                 return `
                 <div class="acctRow acctRowEditing">
                     <div class="acctRowDesc">
                         <div>${escapeHtml(e.description)}</div>
-                        <div class="acctRowDate">${escapeHtml(String(e.date || ""))}</div>
+                        <div class="acctRowDate">${escapeHtml(dateLabel)}</div>
                     </div>
                     <input type="number" id="acctEditAmount-${e.id}" class="acctEditInput" value="${Math.abs(e.amount)}" />
                     <button type="button" class="debtIconBtn" onclick="submitEditEntry('${e.id}','${e.type}')" aria-label="Save">✓</button>
@@ -1005,13 +992,13 @@ function renderAccountSheet() {
             <div class="acctRow">
                 <div class="acctRowDesc">
                     <div>${escapeHtml(e.description)}</div>
-                    <div class="acctRowDate">${escapeHtml(String(e.date || ""))}</div>
+                    <div class="acctRowDate">${escapeHtml(dateLabel)}</div>
                 </div>
                 <div class="acctRowAmountBox">
                     <div class="acctRowAmount ${e.amount < 0 ? "negative" : ""}">${e.amount < 0 ? "-" : ""}${money(Math.abs(e.amount))}</div>
                     ${e.remaining != null ? `<div class="acctRowRemaining">${money(e.remaining)}</div>` : ""}
                 </div>
-                ${canEdit ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
+                ${canEdit && isLong ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
             </div>`;
         })
         .join("");
@@ -1021,11 +1008,7 @@ function renderAccountSheet() {
             <div class="acctBalanceLabel">Balance</div>
             <div class="acctBalanceValue">${money(APP.activeAccount.balance)}</div>
         </div>
-        <div class="debtSheetHint">${
-            isLong
-                ? `Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}`
-                : `${statement.entries.length} follow-up${statement.entries.length === 1 ? "" : "s"} logged`
-        }</div>
+        <div class="debtSheetHint">Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}</div>
         <div class="acctStatementList">${rows || '<div class="emptyState">No activity recorded yet.</div>'}</div>
         ${
             canEdit && isLong
