@@ -48,8 +48,8 @@
                     <button type="button" id="reviewButton" class="debtHeaderLink" style="display: none" onclick="openReview()">
                         Review <span id="reviewBadge" class="debtCountBadge" style="display: none"></span>
                     </button>
-                    <button type="button" id="refreshDaftraButton" class="debtHeaderLink" style="display: none" onclick="doRefreshFromDaftra()">Refresh from Daftra</button>
-                    <button type="button" class="debtHeaderLink" onclick="doSync(true)">Sync now</button>
+                    <button type="button" id="refreshDaftraButton" class="debtHeaderLink" style="display: none" onclick="doRefreshFromDaftra()" title="Slow (1-3+ min) -- re-scans every invoice/payment on the real Daftra account. Only needed when something changed outside this app: a payment made on Daftra's website, or via the Bulk Invoice/Bulk Payment tools.">Refresh from Daftra</button>
+                    <button type="button" class="debtHeaderLink" onclick="doSync(true)" title="Fast -- pulls whatever's already in the spreadsheet to this device. Use this when another employee changed something on their phone.">Sync from sheet</button>
                 </div>
             </div>
 
