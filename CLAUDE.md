@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A plain static PWA (no build step, no `package.json`/npm at all) that employees install on their phones to follow up on customer debts and look up product purchase prices. It's a pure frontend — all data and writes go through `employee-debts-api`, a separate standalone Apps Script project, over `fetch()`. Hosted on GitHub Pages (`github.com/MuaathAlhaddad/employee-debts-app`).
 
+For how this project fits together with `employee-debts-api` and `pl-report-google-script-v2` (shared Sheet, shared Daftra account), see the [architecture diagram](https://claude.ai/code/artifact/5fd8bd90-a0b1-4389-926a-859cb014fa91).
+
 ## Running it locally
 
 There's no dev server config in the repo — serve the directory with anything static (e.g. `npx http-server .`) or open `index.html` directly. **If you've tested a previous version on the same phone/browser, clear the service worker and cache first** (DevTools → Application → Service Workers → Unregister, and Clear storage) — `sw.js` aggressively caches the app shell (see below), so a stale install can mask real changes during testing.
