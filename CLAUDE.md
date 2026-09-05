@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A plain static PWA (no build step, no `package.json`/npm at all) that employees install on their phones to follow up on customer debts and look up product purchase prices. It's a pure frontend — all data and writes go through `employee-debts-api`, a separate standalone Apps Script project, over `fetch()`. Hosted on GitHub Pages (`github.com/MuaathAlhaddad/employee-debts-app`).
 
-For how this project fits together with `employee-debts-api` and `pl-report-google-script-v2` (shared Sheet, shared Daftra account), see the [architecture diagram](https://claude.ai/code/artifact/5fd8bd90-a0b1-4389-926a-859cb014fa91).
+For how this project fits together with `employee-debts-api` and `pl-report-google-script-v2` (shared Sheet, shared Daftra account), see the [architecture diagram](https://claude.ai/code/artifact/5fd8bd90-a0b1-4389-926a-859cb014fa91) and, for a version-controlled fallback that doesn't depend on that external link surviving, this repo's own [ARCHITECTURE.md](ARCHITECTURE.md).
+
+**Before making a non-trivial change, check [DECISIONS.md](DECISIONS.md) and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) first** — they capture business rules, past reversals, and in-progress investigations that aren't otherwise visible from reading the current code (see "Documentation and process" below for why this matters here specifically).
 
 ## Running it locally
 
@@ -24,3 +26,11 @@ There's no dev server config in the repo — serve the directory with anything s
 ## Working across repos
 
 This app, `employee-debts-api`, and the owner-facing `pl-report-google-script-v2` sales-tracker together read/write one shared Google Sheet (via the API project) and one shared Daftra account. When a change here depends on a new/changed API action, it needs a corresponding change in `employee-debts-api`'s `Api.gs` (`API_ACTIONS` whitelist) deployed to the versioned deployment `API_URL` points at — a frontend change alone won't do anything until that lands.
+
+## Documentation and process
+
+This project has previously lost real context between sessions — confirmed concretely in `employee-debts-api` (see that repo's `KNOWN_ISSUES.md`), where a run of live `clasp` deploys was never committed to git and had to be reconstructed later from memory into one lossy squash commit. This repo has no `clasp`/deploy step of its own (a `git push` to the served branch *is* the deploy), but the same discipline still applies to documentation:
+
+- **Never let a real behavior change land without updating `DECISIONS.md` (for a settled decision) or `KNOWN_ISSUES.md` (for an open bug/gap), in the same commit** — not "I'll write it up later." Later is exactly how the previous loss happened.
+- If a session investigates a bug without fully fixing it, write down what was ruled out and the leading hypothesis in `KNOWN_ISSUES.md` before the session ends — don't leave it only in chat history.
+- If you discover a git commit message that no longer matches current behavior (one exists — see `DECISIONS.md`'s "2026-08-24 → 2026-08-26" entry), don't silently trust it; add a note so the next reader doesn't get misled the same way.
