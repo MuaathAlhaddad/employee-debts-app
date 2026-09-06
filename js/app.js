@@ -753,8 +753,20 @@ function submitPayment(clientId) {
                             : [{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }],
                     );
                     if (d) {
-                        const newRemaining = Math.max(0, d.amount - d.amountPaid - Number(amount));
-                        promptWhatsappFollowUp_(d.clientName, d.phone, buildPaymentMessage_(amount, newRemaining));
+                        if (isShort) {
+                            // No Daftra involved for a Short debtor -- the
+                            // Sheet row this was just computed from IS the
+                            // system of record, so this isn't a guess.
+                            const newRemaining = Math.max(0, d.amount - d.amountPaid - Number(amount));
+                            promptWhatsappFollowUp_(d.clientName, d.phone, buildPaymentMessage_(amount, newRemaining));
+                        } else if (result && result.balance != null) {
+                            // Authoritative balance from Daftra, returned
+                            // directly by addLongDebtorPayment -- not a
+                            // locally-guessed number. If it's missing (a
+                            // rare post-write Daftra re-scan failure), skip
+                            // the receipt rather than show/send a fake one.
+                            promptWhatsappFollowUp_(d.clientName, d.phone, buildPaymentMessage_(amount, result.balance));
+                        }
                     }
                     doSync(true);
                 })
@@ -794,8 +806,20 @@ function submitInvoice(clientId) {
                             : [{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }],
                     );
                     if (d) {
-                        const newTotal = d.amount - d.amountPaid + Number(amount);
-                        promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, newTotal));
+                        if (isShort) {
+                            // No Daftra involved for a Short debtor -- the
+                            // Sheet row this was just computed from IS the
+                            // system of record, so this isn't a guess.
+                            const newTotal = d.amount - d.amountPaid + Number(amount);
+                            promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, newTotal));
+                        } else if (result && result.balance != null) {
+                            // Authoritative balance from Daftra, returned
+                            // directly by addLongDebtorInvoice -- not a
+                            // locally-guessed number. If it's missing (a
+                            // rare post-write Daftra re-scan failure), skip
+                            // the receipt rather than show/send a fake one.
+                            promptWhatsappFollowUp_(d.clientName, d.phone, buildDebtAddedMessage_(amount, result.balance));
+                        }
                     }
                     doSync(true);
                 })
@@ -1098,14 +1122,19 @@ function submitAccountPayment() {
                 .then((result) => {
                     hideLoading();
                     showSyncToast_([{ label: "Daftra", ok: true }, { label: "Google Sheet", ok: !!(result && result.sheetUpdated) }]);
-                    const newBalance = APP.activeAccount.balance - Number(amount);
                     const clientName = APP.activeAccount.clientName;
                     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
-                    if (d) promptWhatsappFollowUp_(clientName, d.phone, buildPaymentMessage_(amount, newBalance));
-                    // Optimistic new balance -- doSync() below fetches the
-                    // real one right after; this just avoids a flash of
-                    // the stale pre-payment figure in the meantime.
-                    openAccount(clientId, clientName, newBalance);
+                    // Authoritative balance from Daftra, returned directly
+                    // by addLongDebtorPayment -- not a locally-guessed
+                    // number. If it's missing (a rare post-write Daftra
+                    // re-scan failure), skip the receipt and leave the
+                    // panel showing the last known balance rather than
+                    // fabricate a new one.
+                    const balance = result && result.balance != null ? result.balance : null;
+                    if (balance != null) {
+                        if (d) promptWhatsappFollowUp_(clientName, d.phone, buildPaymentMessage_(amount, balance));
+                        openAccount(clientId, clientName, balance);
+                    }
                     doSync(false);
                 })
                 .catch((err) => {
