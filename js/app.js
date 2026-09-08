@@ -565,6 +565,39 @@ function debtCardHtml(d, canEdit) {
         actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button></div>`;
     }
 
+    // Daftra Client -> Notebook Client migration -- Owner-only (role
+    // checked here just to hide the button; the API independently
+    // re-checks the role server-side, see requireOwnerAccess_ in
+    // Employees.gs). Long debtors only. Three states mirror d.migration:
+    // none yet / a pending Notebook client created / fully disabled --
+    // see feature spec #15. Once disabled, no conversion/disable button
+    // shows again, only a "Disabled" badge + a link to the Notebook client.
+    let migrationHtml = "";
+    if (isLong && APP.employee.role === "owner") {
+        const m = d.migration;
+        if (!m) {
+            migrationHtml = `
+                <div class="migrationRow">
+                    <button type="button" class="debtBtn debtBtnGhost migrationBtn" onclick="openConvertModal('${d.clientId}')">Convert to Notebook Client</button>
+                </div>`;
+        } else if (m.status === "completed") {
+            migrationHtml = `
+                <div class="migrationRow">
+                    <span class="migrationBadge migrationBadge-disabled">Disabled</span>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeAttr(m.notebookClientName)}')">Notebook Client: View</button>
+                </div>`;
+        } else {
+            migrationHtml = `
+                <div class="migrationRow">
+                    <span class="migrationBadge">Notebook client created</span>
+                    <div class="debtActionRow">
+                        <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeAttr(m.notebookClientName)}')">View Notebook Client</button>
+                        <button type="button" class="debtBtn debtBtnDanger" onclick="openDisableModal('${d.clientId}')">Disable Daftra Client</button>
+                    </div>
+                </div>`;
+        }
+    }
+
     return `
         <div class="debtCard ${d.isAgingShort ? "debtCard-aging" : ""}">
             <div class="debtCardTop">
@@ -583,6 +616,7 @@ function debtCardHtml(d, canEdit) {
                         <button type="button" class="debtShareBtn" onclick="shareDebtorBalance_('${d.clientId}')" aria-label="Share balance">📤</button>
                     </div>
                     ${actionsHtml}
+                    ${migrationHtml}
                     ${createdBy ? `<div class="debtCreatedBy">Added by ${escapeHtml(createdBy)}</div>` : ""}
                 </div>
             </div>
@@ -613,6 +647,155 @@ function toggleReconciliationCard_(clientId) {
             render();
         })
         .catch((err) => showError(err));
+}
+
+// ============================================================
+// Daftra Client -> Notebook Client migration -- Owner-only two-step
+// workflow. Deliberately two separate panels/confirmations, never combined
+// into one: Step 1 (convert) is non-destructive, Step 2 (disable) is
+// destructive and only reachable once Step 1 has already succeeded for
+// this client. The API independently re-checks the Owner role on both
+// calls (requireOwnerAccess_ in Employees.gs) -- APP.employee.role here
+// only decides whether to show the buttons at all, same as canEdit does
+// for edit-role actions elsewhere in this file.
+// ============================================================
+
+function closeMigrationPanel() {
+    document.getElementById("migrationPanel").style.display = "none";
+}
+
+function openConvertModal(clientId) {
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    if (!d) return;
+
+    document.getElementById("migrationPanelTitle").textContent = "Convert to Notebook Client";
+    document.getElementById("migrationPanelBody").innerHTML = `
+        <div class="migrationInfoBox">
+            <div class="migrationInfoRow"><span>Client</span><strong>${escapeHtml(d.clientName)}</strong></div>
+            <div class="migrationInfoRow"><span>Client ID</span><strong>${escapeHtml(d.clientId)}</strong></div>
+            <div class="migrationInfoRow"><span>Current balance</span><strong>${money(d.amount - d.amountPaid)}</strong></div>
+        </div>
+        <p class="debtSheetHint">This will create a new Notebook client named "${escapeHtml(d.clientName)}". The existing Daftra client will <strong>NOT</strong> be disabled yet -- it stays fully active. A separate "Disable Daftra Client" step is available afterward, once you've checked the new Notebook client is correct.</p>
+        <div class="debtActionButtons">
+            <button type="button" class="debtBtn debtBtnDark debtLoginButton" onclick="submitConvert('${clientId}')">Create Notebook Client</button>
+            <button type="button" class="debtBtn debtBtnGhost debtLoginButton" onclick="closeMigrationPanel()">Cancel</button>
+        </div>`;
+    document.getElementById("migrationPanel").style.display = "flex";
+}
+
+function submitConvert(clientId) {
+    withOnlineCheck(
+        () => showError("You're offline -- connect to the internet to convert this client."),
+        () => {
+            apiCall("convertDaftraClientToNotebook", APP.employee.name, APP.employee.pin, clientId)
+                .then((result) =>
+                    apiCall("syncBundle", APP.employee.name, APP.employee.pin).then((bundle) => {
+                        APP.data = bundle;
+                        dbSet("bundle", bundle);
+                        hideLoading();
+                        renderConvertResult_(result);
+                        render();
+                    }),
+                )
+                .catch((err) => {
+                    hideLoading();
+                    showError(err);
+                });
+        },
+    );
+}
+
+function renderConvertResult_(result) {
+    document.getElementById("migrationPanelTitle").textContent = result.alreadyExists ? "Already converted" : "Notebook client created";
+    document.getElementById("migrationPanelBody").innerHTML = `
+        <p class="debtSheetHint">${
+            result.alreadyExists
+                ? "A Notebook client has already been created for this Daftra client."
+                : "The new Notebook client has been created. The Daftra client is still active -- review the new client before disabling it."
+        }</p>
+        <div class="debtActionButtons">
+            <button type="button" class="debtBtn debtBtnSage debtLoginButton" onclick="viewNotebookClient('${result.notebookClientId}','${escapeAttr(result.notebookClientName)}')">View Notebook Client</button>
+            <button type="button" class="debtBtn debtBtnGhost debtLoginButton" onclick="closeMigrationPanel()">Close</button>
+        </div>`;
+}
+
+// Reused for both the post-convert success screen and the card's "View
+// Notebook Client" buttons -- opens the same "Client account" overlay any
+// other Short debtor uses (openAccount), not a separate view.
+function viewNotebookClient(notebookClientId, notebookClientName) {
+    closeMigrationPanel();
+    const d = debtsAllList().find((x) => String(x.clientId) === String(notebookClientId));
+    openAccount(notebookClientId, notebookClientName, d ? d.amount - d.amountPaid : 0);
+}
+
+function openDisableModal(clientId) {
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    if (!d || !d.migration) return;
+
+    document.getElementById("migrationPanelTitle").textContent = "Disable Daftra Client";
+    document.getElementById("migrationPanelBody").innerHTML = `
+        <div class="migrationInfoBox migrationInfoBox-danger">
+            <div class="migrationInfoRow"><span>Daftra client</span><strong>${escapeHtml(d.clientName)}</strong></div>
+            <div class="migrationInfoRow"><span>Client ID</span><strong>${escapeHtml(d.clientId)}</strong></div>
+            <div class="migrationInfoRow"><span>Current balance</span><strong>${money(d.amount - d.amountPaid)}</strong></div>
+            <div class="migrationInfoRow"><span>Notebook client</span><strong>${escapeHtml(d.migration.notebookClientName)}</strong></div>
+        </div>
+        <p class="debtSheetHint migrationWarning">This is destructive. You are about to disable this Daftra client -- its outstanding balance will be cleared (recorded as a real Daftra payment) and the client will be renamed. Make sure you have verified the Notebook client first; this cannot be undone.</p>
+        <div class="debtLoginLabel">New Daftra client name</div>
+        <input type="text" id="disableNewName" class="debtLoginInput" placeholder="e.g. OLD - ${escapeAttr(d.clientName)}" value="OLD - ${escapeAttr(d.clientName)}" />
+        <div class="debtActionButtons">
+            <button type="button" class="debtBtn debtBtnDanger debtLoginButton" onclick="submitDisable('${clientId}')">Disable Daftra Client</button>
+            <button type="button" class="debtBtn debtBtnGhost debtLoginButton" onclick="closeMigrationPanel()">Cancel</button>
+        </div>`;
+    document.getElementById("migrationPanel").style.display = "flex";
+}
+
+function submitDisable(clientId) {
+    const nameInput = document.getElementById("disableNewName");
+    const newName = nameInput.value.trim();
+
+    if (!newName) {
+        showError("Enter a new name for the Daftra client.");
+        return;
+    }
+
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    if (!confirm(`Disable "${d ? d.clientName : clientId}" and rename it to "${newName}"? This clears its Daftra balance and cannot be undone.`)) return;
+
+    // Disabled immediately (not just behind the loading overlay) so a
+    // second tap in the moment before the overlay appears can't fire a
+    // second request -- feature spec #13 (double-click/retry protection).
+    const btn = document.querySelector("#migrationPanelBody .debtBtnDanger");
+    if (btn) btn.disabled = true;
+
+    withOnlineCheck(
+        () => {
+            if (btn) btn.disabled = false;
+            showError("You're offline -- connect to the internet to disable this client.");
+        },
+        () => {
+            apiCall("disableDaftraClient", APP.employee.name, APP.employee.pin, clientId, newName)
+                .then((result) =>
+                    apiCall("syncBundle", APP.employee.name, APP.employee.pin).then((bundle) => {
+                        APP.data = bundle;
+                        dbSet("bundle", bundle);
+                        hideLoading();
+                        closeMigrationPanel();
+                        render();
+                        alert(
+                            result.alreadyCompleted
+                                ? "This Daftra client was already disabled."
+                                : `Daftra client disabled. Balance cleared: ${money(result.clearedBalance)}.`,
+                        );
+                    }),
+                )
+                .catch((err) => {
+                    hideLoading();
+                    if (btn) btn.disabled = false;
+                    showError(err);
+                });
+        },
+    );
 }
 
 // ============================================================

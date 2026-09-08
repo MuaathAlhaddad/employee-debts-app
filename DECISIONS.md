@@ -9,6 +9,27 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-08 — Daftra Client → Notebook Client migration: two separate panels/confirmations, never combined
+
+**Decision:** The Owner-only migration workflow (`openConvertModal`/`submitConvert` and
+`openDisableModal`/`submitDisable` in `js/app.js`) is rendered as two visually and functionally
+distinct steps, sharing one overlay (`migrationPanel` in `index.html`) but never one combined
+confirmation:
+- **Step 1 ("Convert to Notebook Client")** is framed as safe/non-destructive — plain buttons,
+  no `confirm()`, explicit text stating the Daftra client is NOT being disabled yet.
+- **Step 2 ("Disable Daftra Client")** only appears on the card once step 1 has succeeded for that
+  client (`d.migration` present, from the server), is styled with the danger color
+  (`.debtBtnDanger`/`.migrationInfoBox-danger`), and requires both a typed new name AND a
+  `confirm()` dialog before submitting.
+
+**Why:** Direct requirement of the migration feature spec (2026-09-08) — the two steps have
+completely different blast radii (one creates an independent new record; the other clears a real
+Daftra balance and renames/suspends a real client) and must never be collapsible into a single tap.
+
+**How to apply:** If this workflow is ever redesigned, keep the two steps as separately-confirmed
+actions. Don't add a "convert and disable in one click" shortcut, even for convenience — the
+whole point is that the Owner looks at the new Notebook client before the Daftra client is touched.
+
 ## 2026-09-05 — Financial writes must be online-only; no offline queueing
 
 **Decision:** The PWA remains offline-capable for **reads** only. Financial **writes** —

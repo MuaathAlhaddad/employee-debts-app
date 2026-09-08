@@ -180,6 +180,21 @@
             </div>
         </div>
 
+        <!-- Daftra Client -> Notebook Client migration -- Owner-only.
+             Two visually distinct steps rendered into the same panel via
+             renderMigrationPanel_(), never combined into one confirmation
+             (feature spec: the two steps must read as clearly different in
+             risk -- Step 1 non-destructive, Step 2 destructive). -->
+        <div id="migrationPanel" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeMigrationPanel()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2 id="migrationPanelTitle">Migration</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeMigrationPanel()">X</button>
+                </div>
+                <div id="migrationPanelBody"></div>
+            </div>
+        </div>
+
         <!-- Sync status toast -- shows what actually saved where after a
              write action (Google Sheet / Daftra), so a Daftra-side
              failure is never silent. -->

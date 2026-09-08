@@ -95,6 +95,22 @@ file-level breakdown (`index.html` + `css/app.css` + `js/{db,api,app}.js` + `sw.
    `CACHE_NAME` — a separate cache from the IndexedDB data cache above, and separate again from
    the *financial-write-must-be-online* rule, which has nothing to do with the shell cache.
 
+## Daftra Client → Notebook Client migration (Owner-only, added 2026-09-08)
+
+`debtCardHtml()` (`js/app.js`) renders one of three states for a Long debtor's card when
+`APP.employee.role === "owner"` (that role check only decides whether to show the button — the
+API independently re-checks it server-side, see `employee-debts-api`'s `Employees.gs`):
+no `d.migration` → "Convert to Notebook Client"; `status: "pending"` → "Notebook client created" +
+"View Notebook Client"/"Disable Daftra Client"; `status: "completed"` → "Disabled" + a link to the
+Notebook client. `d.migration` comes bundled with every Long debtor from `getDebtsList`/`syncBundle`
+already — no extra round trip per card.
+
+Both actions open the same `migrationPanel` overlay (`index.html`, same `.debtSheetOverlay`/
+`.debtSheet` pattern as `accountPanel`/`productPanel`) but render deliberately different content —
+see `DECISIONS.md`'s 2026-09-08 entry for why these are never combined into one confirmation.
+`convertDaftraClientToNotebook`/`disableDaftraClient` are plain `apiCall()`s like any other write
+here, followed by a `syncBundle` refresh so the card never shows stale migration state.
+
 ## Where to look next
 
 - `CLAUDE.md` — file-by-file architecture detail and non-obvious gotchas for this repo

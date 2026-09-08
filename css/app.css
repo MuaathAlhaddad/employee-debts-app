@@ -704,6 +704,69 @@ body.is-offline .debtOfflinePill {
     color: var(--crimson);
 }
 
+/* ----- Daftra Client -> Notebook Client migration (Owner-only) ----- */
+
+.debtBtnDanger {
+    background: var(--crimson);
+    color: white;
+}
+
+.migrationRow {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--rule);
+}
+
+.migrationBtn {
+    width: 100%;
+    justify-content: center;
+}
+
+.migrationBadge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+    background: #f2e6d0;
+    color: var(--amber);
+}
+
+.migrationBadge-disabled {
+    background: #f7e3e0;
+    color: var(--crimson);
+}
+
+.migrationInfoBox {
+    background: var(--paper-dark);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.migrationInfoBox-danger {
+    border: 1px solid var(--crimson);
+}
+
+.migrationInfoRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    padding: 4px 0;
+}
+
+.migrationInfoRow span {
+    color: var(--muted);
+}
+
+.migrationWarning {
+    color: var(--crimson);
+    font-weight: 600;
+}
+
 /* ----- bottom sheets ----- */
 
 .debtSheetOverlay {
