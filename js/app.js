@@ -46,6 +46,17 @@ function escapeAttr(str) {
     return escapeHtml(str).replace(/"/g, "&quot;");
 }
 
+// For a free-text value interpolated into a single-quoted JS argument
+// INSIDE an inline event handler attribute, e.g. onclick="fn('${...}')".
+// escapeAttr() alone only protects the outer HTML attribute boundary (") --
+// it doesn't touch ' or \, so a name containing an apostrophe breaks out of
+// the inner JS string, and one containing "'); alert(1); //" runs arbitrary
+// script the moment the card renders. Escape backslash/quote for the JS
+// string FIRST, then escapeAttr for the HTML attribute around it.
+function escapeJsAttr(str) {
+    return escapeAttr(String(str ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+}
+
 function showLoading() {
     document.getElementById("loadingIndicator").style.display = "block";
 }
@@ -478,7 +489,7 @@ function debtCardHtml(d, canEdit) {
     // Long debtor's shows their real Daftra statement, a Short debtor's
     // shows their local follow-up history, formatted the same way. See
     // openAccount()/renderAccountSheet() for the branch.
-    const accountOnclick = `openAccount('${d.clientId}','${escapeAttr(d.clientName)}',${remaining})`;
+    const accountOnclick = `openAccount('${d.clientId}','${escapeJsAttr(d.clientName)}',${remaining})`;
 
     let actionsHtml = "";
 
@@ -584,14 +595,14 @@ function debtCardHtml(d, canEdit) {
             migrationHtml = `
                 <div class="migrationRow">
                     <span class="migrationBadge migrationBadge-disabled">Disabled</span>
-                    <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeAttr(m.notebookClientName)}')">Notebook Client: View</button>
+                    <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeJsAttr(m.notebookClientName)}')">Notebook Client: View</button>
                 </div>`;
         } else {
             migrationHtml = `
                 <div class="migrationRow">
                     <span class="migrationBadge">Notebook client created</span>
                     <div class="debtActionRow">
-                        <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeAttr(m.notebookClientName)}')">View Notebook Client</button>
+                        <button type="button" class="debtBtn debtBtnGhost" onclick="viewNotebookClient('${m.notebookClientId}','${escapeJsAttr(m.notebookClientName)}')">View Notebook Client</button>
                         <button type="button" class="debtBtn debtBtnDanger" onclick="openDisableModal('${d.clientId}')">Disable Daftra Client</button>
                     </div>
                 </div>`;
@@ -714,7 +725,7 @@ function renderConvertResult_(result) {
                 : "The new Notebook client has been created. The Daftra client is still active -- review the new client before disabling it."
         }</p>
         <div class="debtActionButtons">
-            <button type="button" class="debtBtn debtBtnSage debtLoginButton" onclick="viewNotebookClient('${result.notebookClientId}','${escapeAttr(result.notebookClientName)}')">View Notebook Client</button>
+            <button type="button" class="debtBtn debtBtnSage debtLoginButton" onclick="viewNotebookClient('${result.notebookClientId}','${escapeJsAttr(result.notebookClientName)}')">View Notebook Client</button>
             <button type="button" class="debtBtn debtBtnGhost debtLoginButton" onclick="closeMigrationPanel()">Close</button>
         </div>`;
 }
@@ -1376,7 +1387,7 @@ function renderProductsView() {
     container.innerHTML = matches
         .map(
             (p, i) => `
-        <button type="button" class="productCard" onclick="openProductHistory('${p.id}','${escapeAttr(p.name)}')">
+        <button type="button" class="productCard" onclick="openProductHistory('${p.id}','${escapeJsAttr(p.name)}')">
             <div class="productName">${escapeHtml(p.name)}</div>
             ${i < LAST_PRICE_LIMIT ? `<div class="productLastPurchase" id="productLastPurchase_${p.id}">Loading last price...</div>` : ""}
         </button>`,

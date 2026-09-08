@@ -9,6 +9,28 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-08 — `escapeAttr()` alone is not safe inside an inline event handler's JS string; use `escapeJsAttr()`
+
+**Decision:** Any free-text value (a client/product name — anything not a system-generated id)
+interpolated into a single-quoted JS argument *inside* an inline handler attribute, e.g.
+`onclick="fn('${value}')"`, must go through the new `escapeJsAttr()` (`js/app.js`), not
+`escapeAttr()` alone.
+
+**Why:** Confirmed by an automated security review of this session's commits (2026-09-08):
+`escapeAttr()` only guards the *outer* HTML attribute boundary (escapes `"`) — it does nothing for
+`'` or `\`, which is what actually terminates the *inner* JS string literal in an `onclick="fn('...')"`
+handler. A name containing a single apostrophe already breaks the handler; a name containing
+`x'); alert(1); //` runs arbitrary JS the moment the card renders. This pattern existed in this
+codebase before this session (`openProductHistory`'s product-name argument) and was introduced
+again in this session's own new code (`viewNotebookClient` calls) before being caught — both are
+now fixed with `escapeJsAttr()`, along with `accountOnclick`'s client name.
+
+**How to apply:** `escapeJsAttr()` = escape `\` and `'` for the JS-string context first, then
+`escapeAttr()` for the HTML-attribute context around it. Use it for every free-text value that
+ends up inside a single-quoted argument in an inline event handler; `escapeAttr()` alone stays
+correct for a free-text value in an ordinary HTML attribute (e.g. an `<input value="...">`), which
+isn't also JS.
+
 ## 2026-09-08 — Daftra Client → Notebook Client migration: two separate panels/confirmations, never combined
 
 **Decision:** The Owner-only migration workflow (`openConvertModal`/`submitConvert` and
