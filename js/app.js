@@ -19,6 +19,7 @@ const APP = {
     query: "",
     openAction: null, // { clientId, kind: 'pay' | 'invoice' }
     draft: {},
+    draftNote: {}, // clientId -> optional note text for the open pay/invoice form (Notebook/Short debtors only)
     productQuery: "",
     activeAccount: null, // { clientId, clientName, statement } while viewing a Long Debtor's account
     editingEntryId: null, // id of the one account-statement entry currently showing its inline amount-edit form
@@ -547,6 +548,7 @@ function debtCardHtml(d, canEdit) {
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Amount paid (up to ${money(remaining)})" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
+                    ${!isLong ? `<input type="text" id="draftNote-${d.clientId}" placeholder="Note (optional)" value="${escapeAttr(APP.draftNote[d.clientId] || "")}" oninput="APP.draftNote['${d.clientId}']=this.value" />` : ""}
                     <div class="debtActionButtons">
                         <button type="button" class="debtBtn debtBtnSage" onclick="submitPayment('${d.clientId}')">Record payment</button>
                         <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
@@ -562,6 +564,7 @@ function debtCardHtml(d, canEdit) {
             actionsHtml = `
                 <div class="debtActionForm">
                     <input type="number" id="draft-${d.clientId}" placeholder="Additional amount owed" value="${escapeAttr(APP.draft[d.clientId] || "")}" oninput="APP.draft['${d.clientId}']=this.value" />
+                    ${isShort ? `<input type="text" id="draftNote-${d.clientId}" placeholder="Note (optional)" value="${escapeAttr(APP.draftNote[d.clientId] || "")}" oninput="APP.draftNote['${d.clientId}']=this.value" />` : ""}
                     ${isShort ? `<select id="draftCreditor-${d.clientId}">${creditorOptions}</select>` : ""}
                     <div class="debtActionButtons">
                         <button type="button" class="debtBtn debtBtnDark" onclick="submitInvoice('${d.clientId}')">Add invoice</button>
@@ -941,7 +944,9 @@ function submitPayment(clientId) {
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const isShort = d && d.type === "Short";
     const action = isShort ? "recordDebtPayment" : "addLongDebtorPayment";
-    const params = isShort ? [clientId, amount] : [clientId, amount, ""];
+    const noteEl = document.getElementById(`draftNote-${clientId}`);
+    const note = noteEl ? noteEl.value : "";
+    const params = isShort ? [clientId, amount, note] : [clientId, amount, ""];
 
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to record a payment."),
@@ -950,6 +955,7 @@ function submitPayment(clientId) {
                 .then((result) => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    delete APP.draftNote[clientId];
                     showSyncToast_(
                         isShort
                             ? [{ label: "Google Sheet", ok: true }]
@@ -994,7 +1000,8 @@ function submitInvoice(clientId) {
     // concept doesn't apply to a real Daftra invoice, so this element
     // won't be present on a Long debtor's card.
     const creditorEl = document.getElementById(`draftCreditor-${clientId}`);
-    const params = isShort ? [clientId, amount, "", creditorEl ? creditorEl.value : ""] : [clientId, amount];
+    const noteEl = document.getElementById(`draftNote-${clientId}`);
+    const params = isShort ? [clientId, amount, noteEl ? noteEl.value : "", creditorEl ? creditorEl.value : ""] : [clientId, amount];
 
     withOnlineCheck(
         () => showError("You're offline -- connect to the internet to add an invoice."),
@@ -1003,6 +1010,7 @@ function submitInvoice(clientId) {
                 .then((result) => {
                     APP.openAction = null;
                     delete APP.draft[clientId];
+                    delete APP.draftNote[clientId];
                     showSyncToast_(
                         isShort
                             ? [{ label: "Google Sheet", ok: true }]
