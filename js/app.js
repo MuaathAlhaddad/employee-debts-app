@@ -36,6 +36,15 @@ function money(value) {
     return Math.round(Number(value || 0)).toLocaleString();
 }
 
+// "owner" is a superset of "edit" server-side (requireEditAccess_ in
+// Employees.gs accepts both) -- every edit-gated UI element here must use
+// this, not a bare `role === "edit"` check, or the Owner silently loses
+// access to ordinary edit actions (add payment/invoice, add a Notebook
+// client, etc.) that the API would actually allow.
+function hasEditAccess() {
+    return APP.employee && (APP.employee.role === "edit" || APP.employee.role === "owner");
+}
+
 function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str ?? "";
@@ -226,7 +235,7 @@ function showMain() {
             });
     }
 
-    const canEdit = APP.employee.role === "edit";
+    const canEdit = hasEditAccess();
     document.getElementById("addButton").style.display = canEdit ? "" : "none";
     document.getElementById("reviewButton").style.display = canEdit ? "inline-flex" : "none";
     document.getElementById("refreshDaftraButton").style.display = canEdit ? "inline-flex" : "none";
@@ -315,7 +324,7 @@ function setView(view) {
     });
     document.getElementById("debtorsView").style.display = view === "debtors" ? "block" : "none";
     document.getElementById("productsView").style.display = view === "products" ? "block" : "none";
-    document.getElementById("addButton").style.display = view === "debtors" && APP.employee.role === "edit" ? "" : "none";
+    document.getElementById("addButton").style.display = view === "debtors" && hasEditAccess() ? "" : "none";
     render();
 }
 
@@ -351,7 +360,7 @@ function renderDebtorsView() {
     // Outstanding total is edit-role only (owner's request, 2026-08-27) --
     // view-only employees can still see individual debtor balances, just
     // not the shop-wide total.
-    document.getElementById("debtsOutstandingBlock").style.display = APP.employee.role === "edit" ? "" : "none";
+    document.getElementById("debtsOutstandingBlock").style.display = hasEditAccess() ? "" : "none";
     document.getElementById("debtsSnapshotTime").textContent = APP.data.debts.snapshotTime
         ? "Daftra last pulled " + APP.data.debts.snapshotTime
         : "";
@@ -433,7 +442,7 @@ function renderDebtorsList() {
 
     const container = document.getElementById("debtsList");
     const empty = document.getElementById("debtsEmpty");
-    const canEdit = APP.employee.role === "edit";
+    const canEdit = hasEditAccess();
 
     if (list.length === 0) {
         container.innerHTML = "";
@@ -1179,7 +1188,7 @@ function closeAccount() {
 
 function renderAccountSheet() {
     const statement = APP.activeAccount.statement;
-    const canEdit = APP.employee.role === "edit";
+    const canEdit = hasEditAccess();
     const clientId = APP.activeAccount.clientId;
     const isLong = APP.activeAccount.isLong;
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));

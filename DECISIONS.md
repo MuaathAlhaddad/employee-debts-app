@@ -9,6 +9,14 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-09 — Every edit-gated UI element must use `hasEditAccess()`, not a bare `role === "edit"` check
+
+**Decision:** `js/app.js` now has `hasEditAccess()` (`role === "edit" || role === "owner"`), used everywhere an edit-role action's button/section visibility is decided (the "+" add button, the Outstanding total, "Refresh from Daftra", the review log button, and every card's `canEdit` in `debtCardHtml`/`renderAccountSheet`/`renderDebtorsList`).
+
+**Why:** Confirmed as a real regression the day after the "owner" role was added (`employee-debts-api`'s `Employees.gs`, 2026-09-08): the backend's `requireEditAccess_()` was updated to treat `"owner"` as a superset of `"edit"`, but the frontend's checks were all still a bare `role === "edit"` — so the Owner could no longer add a payment/invoice, add a Notebook client, or see the Outstanding total, even though the API would have allowed all of it. The API was never wrong; only the frontend's gating was out of sync with it.
+
+**How to apply:** Any new edit-gated UI element must call `hasEditAccess()`, not check `.role` directly. The Owner-only migration buttons (`d.migration`-driven) are a deliberate exception — those stay `role === "owner"` exclusively, since edit-role employees must NOT see them.
+
 ## 2026-09-08 — `escapeAttr()` alone is not safe inside an inline event handler's JS string; use `escapeJsAttr()`
 
 **Decision:** Any free-text value (a client/product name — anything not a system-generated id)
