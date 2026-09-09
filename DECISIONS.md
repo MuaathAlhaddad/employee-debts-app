@@ -9,6 +9,14 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-09 — Phone number inputs strip whitespace live, not just on submit
+
+**Decision:** The phone `<input>`s (`newPhone` in `index.html`, `editPhone-${clientId}` in `js/app.js`'s `editShort` action) now strip whitespace on every `input` event (`oninput="this.value = this.value.replace(/\s+/g, '')"`), and `submitShortDebt()`/`submitEditShort()` also strip whitespace when reading the value as a defensive backstop.
+
+**Why:** Pasting a phone number (e.g. from Contacts, WhatsApp, or a spreadsheet) commonly carries spaces (`+966 50 123 4567`), which previously passed straight through to the sheet/WhatsApp deep link unchanged. `normalizePhoneForWhatsapp_()` already strips non-digits for the WhatsApp link, but the *stored* phone value (what's shown on the card and saved to the Sheet) kept the spaces.
+
+**How to apply:** Any new free-text phone field should follow the same pattern — live-strip on input plus a defensive strip at read time — rather than relying on `.trim()` alone, which only removes leading/trailing whitespace.
+
 ## 2026-09-09 — Every edit-gated UI element must use `hasEditAccess()`, not a bare `role === "edit"` check
 
 **Decision:** `js/app.js` now has `hasEditAccess()` (`role === "edit" || role === "owner"`), used everywhere an edit-role action's button/section visibility is decided (the "+" add button, the Outstanding total, "Refresh from Daftra", the review log button, and every card's `canEdit` in `debtCardHtml`/`renderAccountSheet`/`renderDebtorsList`).

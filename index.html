@@ -111,7 +111,7 @@
                 <input type="text" id="newName" class="debtLoginInput" placeholder="Debtor's name" />
 
                 <label class="debtLoginLabel">Phone</label>
-                <input type="text" id="newPhone" class="debtLoginInput" placeholder="+9665..." />
+                <input type="text" id="newPhone" class="debtLoginInput" placeholder="+9665..." oninput="this.value = this.value.replace(/\s+/g, '')" />
 
                 <label class="debtLoginLabel">Amount owed</label>
                 <input type="number" id="newAmount" class="debtLoginInput" placeholder="0" />

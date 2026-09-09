@@ -533,7 +533,7 @@ function debtCardHtml(d, canEdit) {
                     <input type="text" id="editName-${d.clientId}" placeholder="Name" value="${escapeAttr(d.clientName)}" />
                     <input type="number" id="editAmount-${d.clientId}" placeholder="Amount owed" value="${escapeAttr(d.amount)}" />
                     <input type="number" id="editAmountPaid-${d.clientId}" placeholder="Amount paid" value="${escapeAttr(d.amountPaid)}" />
-                    <input type="tel" id="editPhone-${d.clientId}" placeholder="Phone (optional)" value="${escapeAttr(d.phone || "")}" />
+                    <input type="tel" id="editPhone-${d.clientId}" placeholder="Phone (optional)" value="${escapeAttr(d.phone || "")}" oninput="this.value = this.value.replace(/\s+/g, '')" />
                     <input type="date" id="editDueDate-${d.clientId}" placeholder="Due date" value="${escapeAttr(d.dueDate || "")}" />
                     <input type="date" id="editDateGiven-${d.clientId}" placeholder="Date given" value="${escapeAttr(d.dateGiven || "")}" />
                     <select id="editCreditor-${d.clientId}">
@@ -1050,7 +1050,7 @@ function submitEditShort(clientId) {
     const name = document.getElementById(`editName-${clientId}`).value;
     const amount = document.getElementById(`editAmount-${clientId}`).value;
     const amountPaid = document.getElementById(`editAmountPaid-${clientId}`).value;
-    const phone = document.getElementById(`editPhone-${clientId}`).value;
+    const phone = document.getElementById(`editPhone-${clientId}`).value.replace(/\s+/g, "");
     const dueDate = document.getElementById(`editDueDate-${clientId}`).value;
     const dateGiven = document.getElementById(`editDateGiven-${clientId}`).value;
     const creditor = document.getElementById(`editCreditor-${clientId}`).value;
@@ -1111,7 +1111,7 @@ function toggleAddShortForm() {
 
 function submitShortDebt() {
     const name = document.getElementById("newName").value.trim();
-    const phone = document.getElementById("newPhone").value.trim();
+    const phone = document.getElementById("newPhone").value.replace(/\s+/g, "");
     const amount = document.getElementById("newAmount").value;
     const dateGiven = document.getElementById("newDateGiven").value;
     const notes = document.getElementById("newNotes").value.trim();
