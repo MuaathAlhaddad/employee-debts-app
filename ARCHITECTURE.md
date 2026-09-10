@@ -111,6 +111,41 @@ see `DECISIONS.md`'s 2026-09-08 entry for why these are never combined into one 
 `convertDaftraClientToNotebook`/`disableDaftraClient` are plain `apiCall()`s like any other write
 here, followed by a `syncBundle` refresh so the card never shows stale migration state.
 
+## Owner-only Notebook deletion + Notebook tags (added 2026-09-10)
+
+**Deletion** (`initSwipeToDelete_()` and the `confirmDeleteNotebookClient_()`/
+`confirmDeleteNotebookTransaction_()` it delegates to, `js/app.js`) covers Notebook (Short) clients
+and their individual payment/invoice entries -- never Long (Daftra) debtors, which this feature
+doesn't touch. `APP.employee.role === "owner"` gates whether the delete affordance renders at all
+(both the swipe wrapper's markup and the "more" menu's Delete button) -- the API independently
+re-checks the role server-side (`requireOwnerAccess_()`, `employee-debts-api`'s `Employees.gs`), so
+this is a real gate, not just a UI hide. Two entry points render side by side rather than one
+replacing the other:
+- **Swipe** (mobile-first): a card/row wrapped in `.swipeRow`/`.swipeContent`/`.swipeDeleteBg`
+  reveals a red "Delete" button when dragged left past a threshold (Pointer Events, delegated on
+  `document` so it survives this app's constant innerHTML re-renders without rebinding). A plain
+  tap always falls through to whatever's underneath; only a clearly horizontal drag engages it.
+- **An explicit action** (desktop/mouse, since a mouse never fires the drag swipe relies on): the
+  card's "more" menu gets a red Delete button; each Short debtor entry in the "Client account"
+  panel gets a small 🗑️ icon next to where a Long debtor's entry would show its ✏️ edit icon.
+
+Both paths funnel into the same `confirm()` + `apiCall()` + `doSync()` flow. Deletion is never
+optimistic -- nothing is removed from `APP.data` until the server confirms it; a failed request just
+snaps the swiped row back closed (the "restore the row on failure" requirement is exactly that,
+since the row was never actually removed from view). Same online-only contract as every other write
+in this app (`withOnlineCheck()`/`checkOnline()`) -- there's no offline queue to exclude it from
+because this app has none for any write.
+
+**Notebook tags:** any logged-in employee can view/filter (a `#debtsTagFilter` chip row, populated
+by `renderTagFilterRow_()`, hidden entirely when no tags exist); creating/renaming/assigning/
+removing needs edit access (`hasEditAccess()`), matching this feature's server-side gate. A Short
+client's own tags render as compact badges under its name (`renderTagBadges_()`) and are
+assigned/removed from that card's "more" menu -&gt; Tags (toggleable chips, immediate apply, no
+separate save step -- same pattern `toggleReconciliationCard_()` already uses for a different
+one-tap toggle). A standalone "Manage tags" panel (`openTagsPanel()`, edit-role only) handles
+create/rename at the registry level. `APP.data.tags` comes bundled from `syncBundle()`'s response --
+no separate round trip needed for the filter row or the "assign an existing tag" list.
+
 ## Where to look next
 
 - `CLAUDE.md` — file-by-file architecture detail and non-obvious gotchas for this repo

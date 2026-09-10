@@ -16,6 +16,8 @@ const APP = {
     view: "debtors", // "debtors" | "products"
     tab: "today",
     typeFilter: "all",
+    tagFilter: null, // Notebook Tags -- tag id currently filtering the list, or null for "All tags"
+    renamingTagId: null, // id of the tag currently showing its inline rename input in the manage-tags panel
     query: "",
     openAction: null, // { clientId, kind: 'pay' | 'invoice' }
     draft: {},
@@ -122,6 +124,225 @@ function updateOnlineIndicator() {
 window.addEventListener("online", updateOnlineIndicator);
 window.addEventListener("offline", updateOnlineIndicator);
 
+// ============================================================
+// Swipe-to-delete (Notebook, Owner-only) -- mobile gesture for deleting a
+// Notebook (Short) client card or one of its payment/invoice entries.
+// Desktop gets an equivalent explicit action instead (the card's "more"
+// menu has a Delete button; each entry in a Short debtor's "Client
+// account" panel has a small delete icon) -- a mouse never fires the drag
+// this relies on, so swipe is additive, not the only way in.
+//
+// Delegated on `document` via Pointer Events (fire for touch AND mouse,
+// which also makes this testable with a plain mouse drag) rather than
+// bound per-card -- this whole app re-renders cards via innerHTML
+// constantly, and delegation survives that with no re-binding needed. A
+// row only starts dragging once a clearly horizontal, clearly deliberate
+// movement is seen (past a small pixel threshold, more horizontal than
+// vertical) -- a plain tap always falls through untouched to whatever
+// button/link is under it, and a vertical drag is left alone so the list
+// still scrolls normally underneath.
+//
+// Deletion itself is never optimistic: nothing is removed from APP.data
+// until the server actually confirms it (doSync()/syncBundle picks up the
+// real state afterward). A failed request just snaps the row back closed
+// -- "restore the row on failure" per the feature spec is exactly that,
+// since the row was never removed from view before the write succeeded.
+// ============================================================
+
+const SWIPE_OPEN_PX = -84; // matches .swipeDeleteBg's width in app.css
+const SWIPE_OPEN_THRESHOLD = -42; // past this much drag on release, snap open instead of closed
+
+let swipeState_ = null; // { rowEl, contentEl, startX, startY, baseX, dx, decided, dragging, pointerId }
+let swipeOpenRow_ = null; // the .swipeContent currently snapped open, if any
+const swipeDeletingIds_ = new Set(); // client/transaction ids with an in-flight delete -- blocks a double-tap
+
+function closeOpenSwipeRow_() {
+    if (!swipeOpenRow_) return;
+    swipeOpenRow_.style.transform = "";
+    const row = swipeOpenRow_.closest(".swipeRow");
+    if (row) row.classList.remove("swipeRow-open");
+    swipeOpenRow_ = null;
+}
+
+function initSwipeToDelete_() {
+    document.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".swipeDeleteBtn")) return; // its own click handler runs this
+
+        const content = e.target.closest(".swipeContent");
+
+        if (swipeOpenRow_ && content !== swipeOpenRow_) closeOpenSwipeRow_();
+
+        if (!content) {
+            swipeState_ = null;
+            return;
+        }
+
+        const row = content.closest(".swipeRow");
+        swipeState_ = {
+            rowEl: row,
+            contentEl: content,
+            startX: e.clientX,
+            startY: e.clientY,
+            baseX: row && row.classList.contains("swipeRow-open") ? SWIPE_OPEN_PX : 0,
+            dx: 0,
+            decided: false,
+            dragging: false,
+            pointerId: e.pointerId,
+        };
+    });
+
+    document.addEventListener("pointermove", (e) => {
+        const state = swipeState_;
+        if (!state || e.pointerId !== state.pointerId) return;
+
+        const dx = e.clientX - state.startX;
+        const dy = e.clientY - state.startY;
+
+        if (!state.decided) {
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // too small to tell intent yet
+            state.decided = true;
+            state.dragging = Math.abs(dx) > Math.abs(dy);
+            if (!state.dragging) return; // more vertical than horizontal -- leave native scroll alone
+        }
+
+        if (!state.dragging) return;
+
+        e.preventDefault();
+        state.dx = Math.max(SWIPE_OPEN_PX, Math.min(0, state.baseX + dx));
+        state.contentEl.style.transform = `translateX(${state.dx}px)`;
+    });
+
+    const endDrag = (e) => {
+        const state = swipeState_;
+        if (!state || e.pointerId !== state.pointerId) return;
+        swipeState_ = null;
+
+        if (!state.dragging) {
+            // A plain tap on an already-open row closes it -- otherwise
+            // leave it alone (the tap was meant for whatever's underneath).
+            if (state.baseX === SWIPE_OPEN_PX) closeOpenSwipeRow_();
+            return;
+        }
+
+        const openNow = state.dx <= SWIPE_OPEN_THRESHOLD;
+        state.contentEl.style.transform = openNow ? `translateX(${SWIPE_OPEN_PX}px)` : "";
+        state.rowEl.classList.toggle("swipeRow-open", openNow);
+        swipeOpenRow_ = openNow ? state.contentEl : null;
+    };
+
+    document.addEventListener("pointerup", endDrag);
+    document.addEventListener("pointercancel", endDrag);
+
+    // Delegated so it works for both the client-card swipe rows and the
+    // Short debtor transaction rows inside the "Client account" panel,
+    // without binding a listener per row on every re-render.
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".swipeDeleteBtn");
+        if (!btn || btn.disabled) return;
+
+        const kind = btn.getAttribute("data-delete-kind");
+        const id = btn.getAttribute("data-delete-id");
+        if (kind === "client") confirmDeleteNotebookClient_(id, btn);
+        else if (kind === "transaction") confirmDeleteNotebookTransaction_(id, btn);
+    });
+}
+
+// Owner-only (both callers below only ever render this button for the
+// owner role -- the API independently re-checks server-side too, see
+// requireOwnerAccess_ in Employees.gs). Shared by the swipe-reveal delete
+// button and the card's "more" menu Delete button.
+function confirmDeleteNotebookClient_(clientId, triggerEl) {
+    if (swipeDeletingIds_.has(clientId)) return; // already in flight -- ignore a double tap/click
+
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    const name = d ? d.clientName : clientId;
+
+    if (!confirm(`Delete "${name}" from the Notebook?\n\nTheir balance and full history are kept, just hidden -- this can be restored by the owner later if it was a mistake.`)) {
+        closeOpenSwipeRow_();
+        return;
+    }
+
+    swipeDeletingIds_.add(clientId);
+    if (triggerEl) triggerEl.disabled = true;
+
+    withOnlineCheck(
+        () => {
+            swipeDeletingIds_.delete(clientId);
+            if (triggerEl) triggerEl.disabled = false;
+            closeOpenSwipeRow_();
+            showError("You're offline -- connect to the internet to delete this client.");
+        },
+        () => {
+            apiCall("deleteShortDebt", APP.employee.name, APP.employee.pin, clientId)
+                .then(() => {
+                    swipeDeletingIds_.delete(clientId);
+                    closeOpenSwipeRow_();
+                    APP.openAction = null;
+                    doSync(true);
+                })
+                .catch((err) => {
+                    swipeDeletingIds_.delete(clientId);
+                    hideLoading();
+                    if (triggerEl) triggerEl.disabled = false;
+                    closeOpenSwipeRow_(); // "restore the row" -- it was never removed, just snap it shut
+                    showError(err);
+                });
+        },
+    );
+}
+
+// Owner-only, same reasoning as confirmDeleteNotebookClient_ above.
+function confirmDeleteNotebookTransaction_(transactionId, triggerEl) {
+    if (swipeDeletingIds_.has(transactionId)) return;
+
+    if (!confirm("Delete this entry?\n\nIt will stop counting toward this client's balance -- this can be restored by the owner later if it was a mistake.")) {
+        closeOpenSwipeRow_();
+        return;
+    }
+
+    swipeDeletingIds_.add(transactionId);
+    if (triggerEl) triggerEl.disabled = true;
+    const clientId = APP.activeAccount && APP.activeAccount.clientId;
+    const clientName = APP.activeAccount && APP.activeAccount.clientName;
+
+    withOnlineCheck(
+        () => {
+            swipeDeletingIds_.delete(transactionId);
+            if (triggerEl) triggerEl.disabled = false;
+            closeOpenSwipeRow_();
+            showError("You're offline -- connect to the internet to delete this entry.");
+        },
+        () => {
+            apiCall("deleteShortTransaction", APP.employee.name, APP.employee.pin, transactionId)
+                .then(() => {
+                    swipeDeletingIds_.delete(transactionId);
+                    closeOpenSwipeRow_();
+                    return apiCall("syncBundle", APP.employee.name, APP.employee.pin);
+                })
+                .then((bundle) => {
+                    APP.data = bundle;
+                    dbSet("bundle", bundle);
+                    hideLoading();
+                    if (clientId) {
+                        // Re-open the account panel fresh so both the
+                        // statement list AND the balance shown at the top
+                        // reflect the now-reversed transaction.
+                        const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+                        openAccount(clientId, clientName, d ? d.amount - d.amountPaid : 0);
+                    }
+                    render();
+                })
+                .catch((err) => {
+                    swipeDeletingIds_.delete(transactionId);
+                    hideLoading();
+                    if (triggerEl) triggerEl.disabled = false;
+                    closeOpenSwipeRow_();
+                    showError(err);
+                });
+        },
+    );
+}
+
 // Wraps a write action: probes for a real connection first (navigator.onLine
 // alone is unreliable), and only then runs the actual submit callback.
 function withOnlineCheck(onOffline, run) {
@@ -149,6 +370,7 @@ function loadSavedEmployee() {
 
 function init() {
     updateOnlineIndicator();
+    initSwipeToDelete_();
 
     const saved = loadSavedEmployee();
     if (saved) {
@@ -240,6 +462,7 @@ function showMain() {
     document.getElementById("addButton").style.display = canEdit ? "" : "none";
     document.getElementById("reviewButton").style.display = canEdit ? "inline-flex" : "none";
     document.getElementById("refreshDaftraButton").style.display = canEdit ? "inline-flex" : "none";
+    document.getElementById("tagsButton").style.display = canEdit ? "inline-flex" : "none";
 
     dbGet("bundle")
         .then((cached) => {
@@ -400,7 +623,43 @@ function renderDebtorsView() {
         btn.classList.toggle("active", btn.getAttribute("data-type") === APP.typeFilter);
     });
 
+    renderTagFilterRow_();
     renderDebtorsList();
+}
+
+// ============================================================
+// Notebook tags -- filter row (any logged-in employee, view or edit) +
+// the "Manage tags" panel (edit-role only, since it only ever
+// creates/renames -- viewing/filtering needs no gate).
+// ============================================================
+
+function renderTagFilterRow_() {
+    const row = document.getElementById("debtsTagFilter");
+    if (!row) return;
+
+    const tags = (APP.data && APP.data.tags) || [];
+
+    if (tags.length === 0) {
+        row.style.display = "none";
+        row.innerHTML = "";
+        return;
+    }
+
+    row.style.display = "flex";
+    row.innerHTML =
+        `<button type="button" class="debtTypeOpt ${!APP.tagFilter ? "active" : ""}" onclick="setTagFilter(null)">All tags</button>` +
+        tags
+            .map(
+                (t) =>
+                    `<button type="button" class="debtTypeOpt ${APP.tagFilter === t.id ? "active" : ""}" onclick="setTagFilter('${t.id}')">${escapeHtml(t.name)}</button>`,
+            )
+            .join("");
+}
+
+// Tapping the already-active tag again clears the filter.
+function setTagFilter(tagId) {
+    APP.tagFilter = APP.tagFilter === tagId ? null : tagId;
+    render();
 }
 
 function setDebtsTab(tab) {
@@ -434,6 +693,12 @@ function renderDebtorsList() {
 
     if (APP.typeFilter !== "all") {
         list = list.filter((d) => d.type.toLowerCase() === APP.typeFilter);
+    }
+
+    // Notebook tags -- Long debtors never have tags, so this naturally
+    // only ever matches Short debtors without needing its own type check.
+    if (APP.tagFilter) {
+        list = list.filter((d) => d.tags && d.tags.some((t) => t.id === APP.tagFilter));
     }
 
     // Biggest remaining balance first -- due-date-based ordering doesn't
@@ -492,6 +757,12 @@ function debtCardHtml(d, canEdit) {
     const typePill = d.type === "Short" ? "Notebook" : "Daftra";
     const isLong = d.type !== "Short";
     const createdBy = d.log && d.log.length ? d.log[0].actor : "";
+    // Owner-only Notebook deletion (2026-09-10) -- Long (Daftra) debtors
+    // aren't covered by this feature. The API independently re-checks the
+    // owner role server-side (requireOwnerAccess_, Employees.gs); this
+    // just decides whether to render the affordance at all.
+    const isOwner = APP.employee && APP.employee.role === "owner";
+    const canDelete = isOwner && !isLong;
 
     // "Client account" opens the same overlay panel for both types
     // (owner's request, 2026-08-31: the old inline expansion for Short
@@ -524,8 +795,42 @@ function debtCardHtml(d, canEdit) {
                             ? `<button type="button" class="debtBtn debtBtnGhost" onclick="toggleReconciliationCard_('${d.clientId}')">${d.needsReconciliation ? "✓ Clear reconciliation flag" : "⚠️ Flag as needs reconciliation"}</button>`
                             : `<button type="button" class="debtBtn debtBtnGhost" onclick="openAction('${d.clientId}','editShort')">✏️ Edit details</button>`
                     }
+                    ${!isLong ? `<button type="button" class="debtBtn debtBtnGhost" onclick="openAction('${d.clientId}','tags')">🏷️ Tags</button>` : ""}
                     <button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button>
+                    ${
+                        canDelete
+                            ? `<button type="button" class="debtBtn debtBtnDanger" onclick="confirmDeleteNotebookClient_('${d.clientId}')">🗑️ Delete</button>`
+                            : ""
+                    }
                     <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">X</button>
+                </div>`;
+        } else if (action === "tags") {
+            // Edit-role (not owner-only) -- matches the rest of this
+            // feature's access level: view/filter is open to everyone,
+            // create/rename/assign/remove needs edit access.
+            const allTags = (APP.data && APP.data.tags) || [];
+            const assignedIds = new Set((d.tags || []).map((t) => t.id));
+            actionsHtml = `
+                <div class="debtActionForm">
+                    <div class="tagChipRow">
+                        ${
+                            allTags.length === 0
+                                ? `<span class="tagEmptyHint">No tags yet -- create one below.</span>`
+                                : allTags
+                                      .map(
+                                          (t) =>
+                                              `<button type="button" class="tagChip ${assignedIds.has(t.id) ? "tagChip-active" : ""}" onclick="toggleClientTag_('${d.clientId}','${t.id}')">${escapeHtml(t.name)}</button>`,
+                                      )
+                                      .join("")
+                        }
+                    </div>
+                    <div class="tagAddRow">
+                        <input type="text" id="newTagInline-${d.clientId}" class="debtLoginInput" placeholder="New tag name" />
+                        <button type="button" class="debtBtn debtBtnDark" onclick="createAndAssignTag_('${d.clientId}')">+ Add</button>
+                    </div>
+                    <div class="debtActionButtons">
+                        <button type="button" class="debtBtn debtBtnGhost" onclick="closeAction()">Done</button>
+                    </div>
                 </div>`;
         } else if (action === "editShort") {
             actionsHtml = `
@@ -582,7 +887,14 @@ function debtCardHtml(d, canEdit) {
         actionsHtml = `
             <div class="debtResolvedRow">
                 <span class="debtResolvedLabel debtResolvedLabel-${d.status}">${d.status === "paid" ? "Paid" : "Dead debt"}</span>
-                ${canEdit ? `<button type="button" class="debtBtn debtBtnGhost" onclick="submitStatus('${d.clientId}','active')">Reopen</button>` : ""}
+                <div class="debtActionRow" style="margin-top: 0">
+                    ${canEdit ? `<button type="button" class="debtBtn debtBtnGhost" onclick="submitStatus('${d.clientId}','active')">Reopen</button>` : ""}
+                    ${
+                        canDelete
+                            ? `<button type="button" class="debtBtn debtBtnDanger" onclick="confirmDeleteNotebookClient_('${d.clientId}')">🗑️ Delete</button>`
+                            : ""
+                    }
+                </div>
             </div>`;
     } else {
         actionsHtml = `<div class="debtActionRow"><button type="button" class="debtBtn debtBtnGhost" onclick="${accountOnclick}">Client account</button></div>`;
@@ -621,7 +933,7 @@ function debtCardHtml(d, canEdit) {
         }
     }
 
-    return `
+    const cardHtml = `
         <div class="debtCard ${d.isAgingShort ? "debtCard-aging" : ""}">
             <div class="debtCardTop">
                 <div class="debtBalanceRing" style="--pct: ${pct}">
@@ -635,6 +947,7 @@ function debtCardHtml(d, canEdit) {
                             ${d.needsReconciliation ? `<span class="debtReconcilePill">⚠️ May not match Daftra</span>` : ""}
                             ${d.isAgingShort ? `<div class="debtAgingFlag">Open ${daysBetween(d.dateGiven, todayStr())}d - consider a Daftra invoice</div>` : ""}
                             <div class="debtName">${escapeHtml(d.clientName)}</div>
+                            ${renderTagBadges_(d.tags)}
                         </div>
                         <button type="button" class="debtShareBtn" onclick="shareDebtorBalance_('${d.clientId}')" aria-label="Share balance">📤</button>
                     </div>
@@ -644,6 +957,29 @@ function debtCardHtml(d, canEdit) {
                 </div>
             </div>
         </div>`;
+
+    if (!canDelete) return cardHtml;
+
+    // Swipe-to-delete wrapper (Owner-only, Notebook clients only) -- see
+    // initSwipeToDelete_()'s header comment for the gesture mechanics.
+    // Non-owners never get this wrapper at all, so there's no delete
+    // affordance in the DOM for them to find (not just hidden by CSS).
+    return `
+        <div class="swipeRow">
+            <div class="swipeDeleteBg">
+                <button type="button" class="swipeDeleteBtn" data-delete-kind="client" data-delete-id="${escapeAttr(d.clientId)}" aria-label="Delete ${escapeAttr(d.clientName)}">Delete</button>
+            </div>
+            <div class="swipeContent">${cardHtml}</div>
+        </div>`;
+}
+
+// Compact tag badges/chips under a Notebook client's name -- Long debtors
+// never have tags (d.tags is only ever populated for Short debtors, see
+// getDebtsList()'s getClientTagsMap_() attachment), so this is a no-op
+// for them.
+function renderTagBadges_(tags) {
+    if (!tags || tags.length === 0) return "";
+    return `<div class="tagBadgeRow">${tags.map((t) => `<span class="tagBadge">${escapeHtml(t.name)}</span>`).join("")}</div>`;
 }
 
 function openAction(clientId, kind) {
@@ -668,6 +1004,141 @@ function toggleReconciliationCard_(clientId) {
             if (d) d.needsReconciliation = result.needsReconciliation;
             APP.openAction = null;
             render();
+        })
+        .catch((err) => showError(err));
+}
+
+// ============================================================
+// Notebook tags -- per-card assign/unassign (the "🏷️ Tags" action inside
+// a Short debtor card's "more" menu) and the standalone "Manage tags"
+// panel below it. Edit-role only (not owner-only) -- matches this
+// feature's access level: everyone can view/filter, edit access is
+// needed to actually change anything.
+// ============================================================
+
+// Toggling doesn't go through withOnlineCheck like a financial write does
+// -- tags aren't financial data, and apiCall()'s own catch already gives
+// a clear "couldn't reach the server" message if this is attempted
+// offline, same as toggleReconciliationCard_ above.
+function toggleClientTag_(clientId, tagId) {
+    const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+    if (!d) return;
+
+    const assigned = (d.tags || []).some((t) => t.id === tagId);
+    const action = assigned ? "removeNotebookTag" : "assignNotebookTag";
+
+    apiCall(action, APP.employee.name, APP.employee.pin, clientId, tagId)
+        .then(() => {
+            if (assigned) {
+                d.tags = (d.tags || []).filter((t) => t.id !== tagId);
+            } else {
+                const tag = ((APP.data && APP.data.tags) || []).find((t) => t.id === tagId);
+                d.tags = (d.tags || []).concat(tag ? [tag] : []);
+            }
+            render();
+        })
+        .catch((err) => showError(err));
+}
+
+// Creates a brand-new tag (or reuses one with the same name -- see
+// createNotebookTag()'s server-side comment) and immediately assigns it
+// to this client, so a name typed while looking at one specific debtor
+// doesn't require a separate trip to the manage-tags panel first.
+function createAndAssignTag_(clientId) {
+    const input = document.getElementById(`newTagInline-${clientId}`);
+    const name = input ? input.value.trim() : "";
+    if (!name) return;
+
+    apiCall("createNotebookTag", APP.employee.name, APP.employee.pin, name)
+        .then((tag) => {
+            if (!APP.data.tags) APP.data.tags = [];
+            if (!APP.data.tags.some((t) => t.id === tag.id)) APP.data.tags.push({ id: tag.id, name: tag.name });
+
+            return apiCall("assignNotebookTag", APP.employee.name, APP.employee.pin, clientId, tag.id).then(() => {
+                const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
+                if (d) d.tags = (d.tags || []).filter((t) => t.id !== tag.id).concat([{ id: tag.id, name: tag.name }]);
+            });
+        })
+        .then(() => render())
+        .catch((err) => showError(err));
+}
+
+// ---- Manage tags panel -- edit-role only, view/rename every tag in the registry ----
+
+function openTagsPanel() {
+    document.getElementById("tagsPanel").style.display = "flex";
+    renderTagsPanel();
+}
+
+function closeTagsPanel() {
+    document.getElementById("tagsPanel").style.display = "none";
+    APP.renamingTagId = null;
+}
+
+function renderTagsPanel() {
+    const tags = (APP.data && APP.data.tags) || [];
+    const list = document.getElementById("tagsPanelList");
+
+    if (tags.length === 0) {
+        list.innerHTML = `<div class="emptyState">No tags yet -- add one below.</div>`;
+        return;
+    }
+
+    list.innerHTML = tags
+        .map((t) => {
+            if (APP.renamingTagId === t.id) {
+                return `
+                <div class="tagManageRow">
+                    <input type="text" id="renameTagInput-${t.id}" class="debtLoginInput" value="${escapeAttr(t.name)}" />
+                    <button type="button" class="debtIconBtn" onclick="submitRenameTag_('${t.id}')" aria-label="Save">✓</button>
+                    <button type="button" class="debtIconBtn" onclick="APP.renamingTagId=null; renderTagsPanel();" aria-label="Cancel">&times;</button>
+                </div>`;
+            }
+            return `
+            <div class="tagManageRow">
+                <span class="tagChip tagChip-active">${escapeHtml(t.name)}</span>
+                <button type="button" class="debtBtn debtBtnGhost" onclick="APP.renamingTagId='${t.id}'; renderTagsPanel();">Rename</button>
+            </div>`;
+        })
+        .join("");
+}
+
+function submitCreateTagStandalone_() {
+    const input = document.getElementById("newTagStandalone");
+    const name = input.value.trim();
+    if (!name) return;
+
+    apiCall("createNotebookTag", APP.employee.name, APP.employee.pin, name)
+        .then((tag) => {
+            if (!APP.data.tags) APP.data.tags = [];
+            if (!APP.data.tags.some((t) => t.id === tag.id)) APP.data.tags.push({ id: tag.id, name: tag.name });
+            input.value = "";
+            renderTagsPanel();
+            renderDebtorsView();
+        })
+        .catch((err) => showError(err));
+}
+
+function submitRenameTag_(tagId) {
+    const input = document.getElementById(`renameTagInput-${tagId}`);
+    const name = input.value.trim();
+    if (!name) return;
+
+    apiCall("renameNotebookTag", APP.employee.name, APP.employee.pin, tagId, name)
+        .then((result) => {
+            const tag = (APP.data.tags || []).find((t) => t.id === tagId);
+            if (tag) tag.name = result.name;
+
+            // Every card's own d.tags carries its own {id, name} copies
+            // (not a shared reference), so those need updating too.
+            debtsAllList().forEach((d) => {
+                const t = d.tags && d.tags.find((x) => x.id === tagId);
+                if (t) t.name = result.name;
+            });
+
+            APP.renamingTagId = null;
+            renderTagsPanel();
+            renderDebtorsView();
         })
         .catch((err) => showError(err));
 }
@@ -1201,6 +1672,10 @@ function renderAccountSheet() {
     const isLong = APP.activeAccount.isLong;
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const needsReconciliation = !!(d && d.needsReconciliation);
+    // Owner-only Notebook deletion (2026-09-10) -- a Short debtor's
+    // payment/invoice entries only; Long (Daftra) entries aren't covered
+    // by this feature (they already have their own edit path above).
+    const isOwner = APP.employee && APP.employee.role === "owner";
 
     const editingId = APP.editingEntryId;
 
@@ -1223,7 +1698,9 @@ function renderAccountSheet() {
                     <button type="button" class="debtIconBtn" onclick="APP.editingEntryId=null; renderAccountSheet();" aria-label="Cancel">&times;</button>
                 </div>`;
             }
-            return `
+
+            const canDeleteEntry = isOwner && !isLong && e.id;
+            const rowHtml = `
             <div class="acctRow">
                 <div class="acctRowDesc">
                     <div>${escapeHtml(e.description)}</div>
@@ -1234,6 +1711,20 @@ function renderAccountSheet() {
                     ${e.remaining != null ? `<div class="acctRowRemaining">${money(e.remaining)}</div>` : ""}
                 </div>
                 ${canEdit && isLong ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
+                ${canDeleteEntry ? `<button type="button" class="acctEditBtn acctDeleteBtn" onclick="confirmDeleteNotebookTransaction_('${e.id}')" aria-label="Delete entry">🗑️</button>` : ""}
+            </div>`;
+
+            // Desktop/mouse gets the 🗑️ icon above; mobile ALSO gets the
+            // swipe gesture (initSwipeToDelete_()'s header comment) --
+            // both call the same confirmDeleteNotebookTransaction_().
+            if (!canDeleteEntry) return rowHtml;
+
+            return `
+            <div class="swipeRow acctSwipeRow">
+                <div class="swipeDeleteBg">
+                    <button type="button" class="swipeDeleteBtn" data-delete-kind="transaction" data-delete-id="${escapeAttr(e.id)}" aria-label="Delete entry">Delete</button>
+                </div>
+                <div class="swipeContent">${rowHtml}</div>
             </div>`;
         })
         .join("");

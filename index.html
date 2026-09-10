@@ -48,6 +48,7 @@
                     <button type="button" id="reviewButton" class="debtHeaderLink" style="display: none" onclick="openReview()">
                         Review <span id="reviewBadge" class="debtCountBadge" style="display: none"></span>
                     </button>
+                    <button type="button" id="tagsButton" class="debtHeaderLink" style="display: none" onclick="openTagsPanel()" title="Create/rename Notebook tags">Tags</button>
                     <button type="button" id="refreshDaftraButton" class="debtHeaderLink" style="display: none" onclick="doRefreshFromDaftra()" title="Slow (1-3+ min) -- re-scans every invoice/payment on the real Daftra account. Only needed when something changed outside this app: a payment made on Daftra's website, or via the Bulk Invoice/Bulk Payment tools.">Refresh from Daftra</button>
                     <button type="button" class="debtHeaderLink" onclick="doSync(true)" title="Fast -- pulls whatever's already in the spreadsheet to this device. Use this when another employee changed something on their phone.">Sync from sheet</button>
                 </div>
@@ -78,6 +79,12 @@
                 <button type="button" class="debtTypeOpt" data-type="long" onclick="setDebtsTypeFilter('long')">Daftra</button>
                 <button type="button" class="debtTypeOpt" data-type="short" onclick="setDebtsTypeFilter('short')">Notebook</button>
             </div>
+
+            <!-- Notebook tags -- filter row. Populated/shown by
+                 renderTagFilterRow_() (js/app.js); hidden entirely when no
+                 tags exist yet. Any logged-in employee (view or edit) can
+                 filter -- viewing/filtering needs no edit gate. -->
+            <div id="debtsTagFilter" class="debtTypeToggle" style="display: none"></div>
 
             <div id="debtsTabs" class="debtTabsRow">
                 <button type="button" class="debtTab active" data-tab="today" onclick="setDebtsTab('today')">Today <span class="debtTabCount">0</span></button>
@@ -140,6 +147,24 @@
                 </div>
                 <p class="debtSheetHint">Everything the team has recorded, newest first. Tap to check it off.</p>
                 <div id="reviewList" class="debtReviewList"></div>
+            </div>
+        </div>
+
+        <!-- Notebook tags -- manage panel (edit-role only: create/rename).
+             Viewing/filtering a client's tags happens on the card itself
+             and in the #debtsTagFilter row above -- this panel is only
+             for registry-level create/rename. -->
+        <div id="tagsPanel" class="debtSheetOverlay" style="display: none" onclick="if(event.target===this) closeTagsPanel()">
+            <div class="debtSheet">
+                <div class="debtSheetHead">
+                    <h2>Notebook tags</h2>
+                    <button type="button" class="debtSheetClose" onclick="closeTagsPanel()">X</button>
+                </div>
+                <p class="debtSheetHint">Create or rename tags here. Assign a tag to a client from that client's own card ("more" menu -&gt; Tags).</p>
+                <div id="tagsPanelList" class="debtReviewList"></div>
+                <label class="debtLoginLabel">New tag</label>
+                <input type="text" id="newTagStandalone" class="debtLoginInput" placeholder="e.g. Regulars" />
+                <button type="button" class="debtBtn debtBtnDark debtLoginButton" onclick="submitCreateTagStandalone_()">Add tag</button>
             </div>
         </div>
 

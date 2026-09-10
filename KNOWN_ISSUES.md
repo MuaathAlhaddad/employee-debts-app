@@ -92,6 +92,14 @@ duplicate payment/invoice. Needs design work in `employee-debts-api` (whether Da
 supports a client-supplied reference/idempotency field is unconfirmed) before this repo's write
 paths can be updated to pass one through. **Not yet implemented.**
 
+## GAP (documented 2026-09-10, deliberate) — No restore UI for a deleted Notebook client/payment/invoice
+
+`employee-debts-api`'s `restoreShortDebt()`/`restoreShortTransaction()` are real, working API
+actions (see that repo's own `KNOWN_ISSUES.md` for the matching entry), but nothing in this app
+calls them — there's no "trash"/deleted-items screen. Today, undoing an owner's mistaken deletion
+requires a direct API call, not anything reachable from the UI. Not urgent (no data is actually
+lost), but worth building if mistaken deletions turn out to be common in practice.
+
 ## Confirmed non-issue — no offline write-queue exists
 
 Not a bug: there is currently no offline/outbox queue anywhere in this codebase for retrying

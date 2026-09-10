@@ -9,6 +9,49 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-10 — Notebook swipe-to-delete: never optimistic, and paired with an equivalent explicit action for desktop
+
+**Decision:** Swiping a Notebook client card (or a Short debtor's payment/invoice entry inside its
+"Client account" panel) left past a threshold reveals a red Delete button (`initSwipeToDelete_()`,
+`js/app.js`) — tapping it still requires a `confirm()` before anything is sent. The row is **never**
+removed from `APP.data`/the DOM before the server confirms the delete; a failed request just snaps
+the row back closed. Every place that renders the swipe gesture also renders an equivalent explicit
+button (the card's "more" menu Delete button; a small 🗑️ icon on each Short debtor account-statement
+entry) — swipe is additive for mobile, not the only way in, since a mouse never fires the drag it
+relies on.
+
+**Why:** Direct requirements from this feature's spec: "do not delete immediately on swipe,"
+"restore the row if the API fails," "prevent accidental/double deletion," and "for desktop, use an
+appropriate contextual/overflow action." A `confirm()` dialog plus a disabled-while-in-flight button
+(`swipeDeletingIds_`, a Set of ids currently mid-delete) covers accidental/double deletion the same
+way `submitDisable()`'s existing `btn.disabled = true` pattern already does for the migration
+feature's own destructive action.
+
+**How to apply:** Any future swipe-to-delete surface in this app should follow the same shape:
+Pointer Events delegated on `document` (survives this app's constant innerHTML re-renders without
+per-row rebinding), a real `confirm()`, no optimistic removal, and a non-swipe fallback action
+alongside it — don't make swipe the *only* way to trigger a destructive action.
+
+## 2026-09-10 — Notebook deletion is owner-only in the UI; Notebook tags are edit-role, not owner-only
+
+**Decision:** The delete affordance (both the swipe wrapper and the "more" menu button) only renders
+when `APP.employee.role === "owner"` — a bare role check, not `hasEditAccess()`, since an edit-role
+(non-owner) employee must never see it at all. Notebook tag viewing/filtering is
+open to every logged-in employee; creating/renaming/assigning/removing a tag uses `hasEditAccess()`,
+the same gate every other edit-capable action in this app uses.
+
+**Why:** Matches the server-side authorization exactly (`requireOwnerAccess_()` vs.
+`requireEditAccess_()`, `employee-debts-api`'s `Employees.gs`/`Tags.gs`) — the frontend's role check
+only decides whether to render the button; the API independently re-checks and would reject either
+action for the wrong role regardless of what the UI shows. Keeping the two in sync avoids the exact
+regression `DECISIONS.md`'s 2026-09-09 "`hasEditAccess()`" entry describes for a different feature —
+a UI gate that's stricter or looser than the server's.
+
+**How to apply:** Don't loosen the delete affordance's role check to `hasEditAccess()` "for
+convenience" — deletion is deliberately owner-only, unlike almost everything else in this app.
+
+---
+
 ## 2026-09-09 — Phone number inputs strip whitespace live, not just on submit
 
 **Decision:** The phone `<input>`s (`newPhone` in `index.html`, `editPhone-${clientId}` in `js/app.js`'s `editShort` action) now strip whitespace on every `input` event (`oninput="this.value = this.value.replace(/\s+/g, '')"`), and `submitShortDebt()`/`submitEditShort()` also strip whitespace when reading the value as a defensive backstop.

@@ -704,6 +704,139 @@ body.is-offline .debtOfflinePill {
     color: var(--crimson);
 }
 
+/* ----- swipe-to-delete (Notebook, Owner-only) ----- */
+/* Mechanics in initSwipeToDelete_() (js/app.js). .swipeContent sits on top
+   of .swipeDeleteBg and gets dragged left via inline transform (or snapped
+   with this transition once the drag ends) to reveal the red Delete
+   button underneath. touch-action: pan-y lets the browser keep handling
+   vertical scroll natively; the JS only intercepts once a drag is
+   confirmed to be more horizontal than vertical. */
+
+.swipeRow {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+}
+
+.swipeDeleteBg {
+    position: absolute;
+    inset: 0;
+    background: var(--crimson);
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+}
+
+.swipeDeleteBtn {
+    width: 84px;
+    border: none;
+    background: none;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.swipeDeleteBtn:disabled {
+    opacity: 0.6;
+}
+
+.swipeContent {
+    position: relative;
+    background: var(--paper);
+    transition: transform 0.18s ease;
+    touch-action: pan-y;
+}
+
+.acctSwipeRow {
+    border-radius: 10px;
+}
+
+.acctSwipeRow .swipeContent {
+    background: white;
+}
+
+/* ----- Notebook tags ----- */
+
+.tagBadgeRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 2px 0 4px;
+}
+
+.tagBadge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #dcefe6;
+    color: var(--sage);
+}
+
+.tagChipRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.tagEmptyHint {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.tagChip {
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.tagChip-active {
+    background: var(--sage);
+    border-color: var(--sage);
+    color: white;
+}
+
+.tagAddRow {
+    display: flex;
+    gap: 8px;
+}
+
+.tagAddRow input {
+    flex: 1;
+    min-width: 0;
+}
+
+.tagManageRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 8px 10px;
+}
+
+.tagManageRow input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+}
+
 /* ----- Daftra Client -> Notebook Client migration (Owner-only) ----- */
 
 .debtBtnDanger {
