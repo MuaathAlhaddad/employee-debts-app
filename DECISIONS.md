@@ -9,6 +9,30 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-14 — Outstanding total's show/hide is a device-local display preference, not app data
+
+**Decision:** The Outstanding total (`#debtsTotal`) now has an eye/eye-off toggle (`debtsTotalToggle`)
+next to it. Visibility state is read/written via `isDebtsTotalHidden()`/`toggleDebtsTotalVisibility()`
+(`js/app.js`) against a plain `localStorage` key (`employeeDebtsTotalHidden`) — **not** IndexedDB, not
+sent to the API, and not part of `APP.data`. Absent key means "never chosen on this device," which
+`isDebtsTotalHidden()` treats as hidden, so a fresh install/reopen always starts with the number
+masked (`•••`) until the employee explicitly taps to reveal it.
+
+**Why:** This app already has one localStorage user (`STORAGE_KEY`, the logged-in employee's session)
+precisely because it's small, synchronous, per-device state — the IndexedDB cache (`js/db.js`) is
+reserved for the larger synced dataset (debts/products), per this file's own architecture note. A
+show/hide preference for one number on one phone is the same kind of state as the session, not app
+data, and has no reason to touch the Sheet/API. Default-hidden was an explicit requirement (privacy on
+a phone that might be glanced at by a customer), so the "no key yet" case can't be treated the same as
+an explicit "show" choice.
+
+**How to apply:** Any future per-device-only display preference (not this app's synced/shared data)
+belongs in `localStorage` next to `TOTAL_HIDDEN_KEY`/`STORAGE_KEY`, not in `APP.data` or a new API
+action. Keep defaulting a missing key to whatever the safer/more private state is, rather than to
+`false`/"off" by convention.
+
+---
+
 ## 2026-09-10 — Notebook swipe-to-delete: never optimistic, and paired with an equivalent explicit action for desktop
 
 **Decision:** Swiping a Notebook client card (or a Short debtor's payment/invoice entry inside its

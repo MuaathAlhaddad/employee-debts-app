@@ -32,11 +32,25 @@ const APP = {
 };
 
 const STORAGE_KEY = "employeeDebtsEmployee";
+const TOTAL_HIDDEN_KEY = "employeeDebtsTotalHidden"; // device-local display preference only, never synced -- see isDebtsTotalHidden()
 
 // ---------- generic helpers ----------
 
 function money(value) {
     return Math.round(Number(value || 0)).toLocaleString();
+}
+
+// Outstanding total's show/hide preference is device-local display state,
+// not app data -- absent key means "never chosen yet", which must default
+// to hidden (privacy-by-default on a shared/shop phone), so this is not the
+// same as storing "0"/false.
+function isDebtsTotalHidden() {
+    return localStorage.getItem(TOTAL_HIDDEN_KEY) !== "0";
+}
+
+function toggleDebtsTotalVisibility() {
+    localStorage.setItem(TOTAL_HIDDEN_KEY, isDebtsTotalHidden() ? "0" : "1");
+    renderDebtorsView();
 }
 
 // "owner" is a superset of "edit" server-side (requireEditAccess_ in
@@ -580,7 +594,11 @@ function renderDebtorsView() {
     const list = debtsAllList();
     const todayCount = list.filter((d) => d.status === "active" && d.lastFollowUp !== todayStr()).length;
 
-    document.getElementById("debtsTotal").textContent = money(APP.data.debts.total);
+    const totalHidden = isDebtsTotalHidden();
+    document.getElementById("debtsTotal").textContent = totalHidden ? "•••" : money(APP.data.debts.total);
+    const totalToggleBtn = document.getElementById("debtsTotalToggle");
+    totalToggleBtn.textContent = totalHidden ? "🙈" : "👁️";
+    totalToggleBtn.setAttribute("aria-label", totalHidden ? "Show total" : "Hide total");
     // Outstanding total is edit-role only (owner's request, 2026-08-27) --
     // view-only employees can still see individual debtor balances, just
     // not the shop-wide total.

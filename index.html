@@ -62,7 +62,10 @@
             <div class="debtStatRow">
                 <div id="debtsOutstandingBlock" style="display: none">
                     <div class="debtStatLabel">Outstanding</div>
-                    <div class="debtStatValue" id="debtsTotal">0</div>
+                    <div class="debtStatValueRow">
+                        <div class="debtStatValue" id="debtsTotal">0</div>
+                        <button type="button" id="debtsTotalToggle" class="debtStatEyeBtn" onclick="toggleDebtsTotalVisibility()" aria-label="Show total">🙈</button>
+                    </div>
                 </div>
                 <div id="debtsChaseToday" class="debtChaseTodayPill" style="display: none"></div>
             </div>

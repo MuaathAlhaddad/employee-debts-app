@@ -287,6 +287,27 @@ body {
     font-weight: 600;
 }
 
+.debtStatValueRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.debtStatEyeBtn {
+    flex: none;
+    border: none;
+    background: none;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.debtStatEyeBtn:active {
+    opacity: 1;
+}
+
 .debtChaseTodayPill {
     display: inline-flex;
     align-items: center;
