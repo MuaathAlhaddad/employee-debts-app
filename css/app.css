@@ -770,14 +770,6 @@ body.is-offline .debtOfflinePill {
     touch-action: pan-y;
 }
 
-.acctSwipeRow {
-    border-radius: 10px;
-}
-
-.acctSwipeRow .swipeContent {
-    background: white;
-}
-
 /* ----- Notebook tags ----- */
 
 .tagBadgeRow {
@@ -1134,6 +1126,294 @@ body.is-offline .debtOfflinePill {
     font-size: 13px;
     font-family: "IBM Plex Mono", monospace;
     box-sizing: border-box;
+}
+
+/* ----- Notebook (Short) account ledger ----- */
+/* Mobile-first: each transaction is one compact row -- type pill + date and
+   the description on the left, amount over running balance on the right --
+   inside a single white card, separated by hairlines rather than per-row
+   borders/shadows. Markup in shortTxRowHtml_() (js/app.js). */
+
+#accountPanel .debtSheetHead {
+    gap: 12px;
+}
+
+#accountPanel .debtSheetHead h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* The shared close "X" is a tiny target; grow only this sheet's hit area
+   (negative margin keeps the visual position unchanged). */
+#accountPanel .debtSheetClose {
+    flex: none;
+    padding: 12px 14px;
+    margin: -12px -14px -12px 0;
+    font-size: 18px;
+}
+
+.txHeader {
+    text-align: center;
+    padding: 10px 0 16px;
+}
+
+.txHeaderLabel {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.txHeaderBalance {
+    font-family: "IBM Plex Mono", monospace;
+    /* Scales down on very narrow phones so even a 12-digit balance keeps
+       its currency label on the same line. */
+    font-size: clamp(26px, 9vw, 36px);
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 2px 0 14px;
+    overflow-wrap: anywhere;
+}
+
+.txCur {
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+}
+
+.txActions {
+    display: flex;
+    gap: 10px;
+}
+
+.txActionBtn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 12px;
+}
+
+.txListHead {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0 2px 8px;
+}
+
+.txList {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.txItem:not(:last-child) {
+    border-bottom: 1px solid var(--paper-dark);
+}
+
+/* A .swipeRow's own rounding is for whole cards; rows here are clipped by
+   .txList's corners instead. */
+.txItem.swipeRow {
+    border-radius: 0;
+}
+
+.txItem .swipeContent {
+    background: white;
+}
+
+.txRow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 68px;
+    padding: 12px 14px;
+}
+
+.txMain {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.txMeta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin-bottom: 4px;
+}
+
+/* Type is carried by the label + arrow + pill shape, never by color alone:
+   payment = outlined with a down arrow, invoice = filled with an up arrow. */
+.txType {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.txType-payment {
+    color: var(--red);
+    border-color: currentColor;
+    background: white;
+}
+
+.txType-invoice {
+    color: var(--ink);
+    background: var(--paper-dark);
+}
+
+.txDate {
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.txDesc {
+    font-size: 14px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+}
+
+.txDesc.txExpanded {
+    display: block;
+    overflow: visible;
+}
+
+.txDesc-default {
+    color: var(--muted);
+}
+
+.txFigures {
+    flex: none;
+    max-width: 55%;
+    text-align: right;
+}
+
+.txAmount {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.txAmount-payment {
+    color: var(--red);
+}
+
+.txAmount-invoice {
+    color: var(--ink);
+}
+
+.txBalance {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.txBalance strong {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+}
+
+/* Desktop/keyboard fallback for the swipe gesture: hidden until the row is
+   hovered or holds focus, and never rendered as a permanent icon. Touch
+   devices (no hover) get the swipe only. */
+.txDeleteHover {
+    display: none;
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    color: var(--crimson);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .txDeleteHover {
+        display: inline-block;
+        opacity: 0;
+    }
+
+    .txRow:hover .txDeleteHover,
+    .txRow:focus-within .txDeleteHover {
+        opacity: 1;
+    }
+
+    .txSwipeHint {
+        display: none;
+    }
+}
+
+.txEmpty {
+    text-align: center;
+    padding: 20px 16px;
+    background: white;
+    border: 1px dashed var(--rule);
+    border-radius: 12px;
+}
+
+.txEmptyTitle {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.txEmptyHint {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* Loading skeleton -- static blocks that shimmer; motion is dropped for
+   users who ask for reduced motion. */
+.txSkel {
+    height: 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, var(--paper-dark) 25%, #efe7d6 50%, var(--paper-dark) 75%);
+    background-size: 200% 100%;
+    animation: txShimmer 1.2s ease-in-out infinite;
+}
+
+.txFigures .txSkel {
+    margin-left: auto;
+}
+
+@keyframes txShimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .txSkel {
+        animation: none;
+    }
 }
 
 /* ----- product search ----- */

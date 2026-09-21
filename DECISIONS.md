@@ -9,6 +9,41 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-09-20 — Notebook "Client account" redesigned as a mobile-first ledger (presentation only)
+
+**Decision:** A Notebook (Short) debtor's account panel now renders through its own
+`renderShortAccountSheet_()` (`js/app.js`; `renderAccountSheet()` just dispatches to it — Long/Daftra
+accounts keep their old layout, inline edit and Daftra payment form untouched). Header = current balance
++ `+ Payment` / `+ Invoice`; each transaction is a compact row (type pill with ↓/↑ arrow + date + note on
+the left, amount over running balance on the right). Payments show `−` in red, invoices `+` in ink/black;
+the pill label + arrow + outlined-vs-filled shape carry the type so color is never the only cue.
+Nothing is calculated here: the header balance is still the `d.amount - d.amountPaid` `openAccount()`
+was always handed, and each row's balance is the server's `remaining`.
+- **No date grouping** — the API caps the ledger at 5 rows, so headers would add height, not scanning value.
+- **Order unchanged** — newest first, exactly as `getShortDebtorTransactions()` returns it.
+- **Quick actions reuse the card's form** — `startAccountAction_()` closes the sheet and calls the existing
+  `openAction()`; `submitPayment()`/`submitInvoice()` are untouched (no second copy of the form, so no
+  second place a financial write could diverge). It resets tab/type/tag/search filters only when the card
+  isn't in the current list (e.g. arriving via "View Notebook Client").
+- **Delete** — the permanent 🗑️ per row is gone. Owner-only swipe-left is the mobile path (engine unchanged);
+  the desktop/keyboard fallback this file's 2026-09-10 entry requires is now a "Delete" button that only
+  appears on row hover/focus on hover-capable pointers. Same `confirm()`, same in-flight guard, same
+  server-side owner check. Still no Undo/restore UI (see `KNOWN_ISSUES.md`).
+- **Currency label** — amounts in this ledger carry a display-only `SAR` suffix (`CURRENCY_LABEL`); the rest
+  of the app still shows bare numbers. Payments are red here even though the app's older account rows used
+  green for payments — the owner asked for red explicitly.
+- **Description** — when a note exists, the row shows just the note (the pill already says Payment/Invoice);
+  with no note it shows the server's default text muted. Long text clamps to 3 lines, tap to expand.
+- **Loading** — header + balance render immediately (the balance is already known) with skeleton rows.
+
+**Why:** Owner's redesign request for counter use on phones: "how much does this customer owe" answerable
+at a glance, five fields per transaction still reachable, no clutter.
+
+**How to apply:** Keep the ledger presentation-only. If the API's 5-row cap is ever lifted, revisit date
+grouping. Don't reintroduce a permanent per-row delete icon.
+
+---
+
 ## 2026-09-14 — Outstanding total's show/hide is a device-local display preference, not app data
 
 **Decision:** The Outstanding total (`#debtsTotal`) now has an eye/eye-off toggle (`debtsTotalToggle`)

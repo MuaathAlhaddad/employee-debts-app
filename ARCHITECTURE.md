@@ -127,7 +127,8 @@ replacing the other:
   tap always falls through to whatever's underneath; only a clearly horizontal drag engages it.
 - **An explicit action** (desktop/mouse, since a mouse never fires the drag swipe relies on): the
   card's "more" menu gets a red Delete button; each Short debtor entry in the "Client account"
-  panel gets a small 🗑️ icon next to where a Long debtor's entry would show its ✏️ edit icon.
+  panel gets a "Delete" button that only appears on row hover/focus on hover-capable pointers
+  (was a permanent 🗑️ icon until the 2026-09-20 ledger redesign -- see `DECISIONS.md`).
 
 Both paths funnel into the same `confirm()` + `apiCall()` + `doSync()` flow. Deletion is never
 optimistic -- nothing is removed from `APP.data` until the server confirms it; a failed request just

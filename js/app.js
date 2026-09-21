@@ -1649,13 +1649,28 @@ function openAccount(clientId, clientName, balance) {
     // rather than recomputed from the last-30-days activity list below,
     // since a running total over a partial window would be a confusingly
     // wrong number for any debt older than 30 days.
-    APP.activeAccount = { clientId, clientName, balance, statement: null, isLong };
+    const account = { clientId, clientName, balance, statement: null, isLong, error: null };
+    APP.activeAccount = account;
     document.getElementById("accountPanel").style.display = "flex";
     document.getElementById("accountName").textContent = clientName;
-    document.getElementById("accountBody").innerHTML = `<div class="emptyState">Loading...</div>`;
+
+    // A Notebook account already knows its balance before the ledger
+    // arrives, so it renders header + skeleton rows straight away instead
+    // of a bare "Loading..." (see renderShortAccountSheet_()).
+    const showAccountMessage = (message) => {
+        if (isLong) {
+            document.getElementById("accountBody").innerHTML = `<div class="emptyState">${escapeHtml(message)}</div>`;
+        } else {
+            account.error = message;
+            renderShortAccountSheet_();
+        }
+    };
+
+    if (isLong) document.getElementById("accountBody").innerHTML = `<div class="emptyState">Loading...</div>`;
+    else renderShortAccountSheet_();
 
     if (!navigator.onLine) {
-        document.getElementById("accountBody").innerHTML = `<div class="emptyState">You're offline -- the account statement needs a live connection.</div>`;
+        showAccountMessage("You're offline -- the account statement needs a live connection.");
         return;
     }
 
@@ -1669,11 +1684,15 @@ function openAccount(clientId, clientName, balance) {
 
     apiCall(action, APP.employee.name, APP.employee.pin, clientId)
         .then((statement) => {
-            APP.activeAccount.statement = statement;
+            // Closed (or switched to another client) while this was in
+            // flight -- don't paint a stale ledger into the wrong panel.
+            if (APP.activeAccount !== account) return;
+            account.statement = statement;
             renderAccountSheet();
         })
         .catch((err) => {
-            document.getElementById("accountBody").innerHTML = `<div class="emptyState">${escapeHtml(err.message || String(err))}</div>`;
+            if (APP.activeAccount !== account) return;
+            showAccountMessage(err.message || String(err));
         });
 }
 
@@ -1683,28 +1702,30 @@ function closeAccount() {
     document.getElementById("accountPanel").style.display = "none";
 }
 
+// Long (Daftra) accounts only -- a Notebook (Short) account has its own
+// mobile-first ledger layout, renderShortAccountSheet_() below.
 function renderAccountSheet() {
+    if (!APP.activeAccount.isLong) {
+        renderShortAccountSheet_();
+        return;
+    }
+
     const statement = APP.activeAccount.statement;
     const canEdit = hasEditAccess();
     const clientId = APP.activeAccount.clientId;
-    const isLong = APP.activeAccount.isLong;
+    const isLong = true;
     const d = debtsAllList().find((x) => String(x.clientId) === String(clientId));
     const needsReconciliation = !!(d && d.needsReconciliation);
-    // Owner-only Notebook deletion (2026-09-10) -- a Short debtor's
-    // payment/invoice entries only; Long (Daftra) entries aren't covered
-    // by this feature (they already have their own edit path above).
-    const isOwner = APP.employee && APP.employee.role === "owner";
 
     const editingId = APP.editingEntryId;
 
-    // Short entries carry an ISO timestamp (needs formatting); Long
-    // entries come from Daftra already formatted ("2025-12-11" etc.) --
-    // shown as-is.
+    // Long entries come from Daftra already formatted ("2025-12-11" etc.)
+    // -- shown as-is.
     const rows = statement.entries
         .map((e) => {
-            const dateLabel = isLong ? String(e.date || "") : fmtDateTime(e.date);
+            const dateLabel = String(e.date || "");
 
-            if (canEdit && isLong && String(editingId) === String(e.id)) {
+            if (canEdit && String(editingId) === String(e.id)) {
                 return `
                 <div class="acctRow acctRowEditing">
                     <div class="acctRowDesc">
@@ -1717,8 +1738,7 @@ function renderAccountSheet() {
                 </div>`;
             }
 
-            const canDeleteEntry = isOwner && !isLong && e.id;
-            const rowHtml = `
+            return `
             <div class="acctRow">
                 <div class="acctRowDesc">
                     <div>${escapeHtml(e.description)}</div>
@@ -1728,21 +1748,7 @@ function renderAccountSheet() {
                     <div class="acctRowAmount ${e.amount < 0 ? "negative" : ""}">${e.amount < 0 ? "-" : ""}${money(Math.abs(e.amount))}</div>
                     ${e.remaining != null ? `<div class="acctRowRemaining">${money(e.remaining)}</div>` : ""}
                 </div>
-                ${canEdit && isLong ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
-                ${canDeleteEntry ? `<button type="button" class="acctEditBtn acctDeleteBtn" onclick="confirmDeleteNotebookTransaction_('${e.id}')" aria-label="Delete entry">🗑️</button>` : ""}
-            </div>`;
-
-            // Desktop/mouse gets the 🗑️ icon above; mobile ALSO gets the
-            // swipe gesture (initSwipeToDelete_()'s header comment) --
-            // both call the same confirmDeleteNotebookTransaction_().
-            if (!canDeleteEntry) return rowHtml;
-
-            return `
-            <div class="swipeRow acctSwipeRow">
-                <div class="swipeDeleteBg">
-                    <button type="button" class="swipeDeleteBtn" data-delete-kind="transaction" data-delete-id="${escapeAttr(e.id)}" aria-label="Delete entry">Delete</button>
-                </div>
-                <div class="swipeContent">${rowHtml}</div>
+                ${canEdit ? `<button type="button" class="acctEditBtn" onclick="APP.editingEntryId='${e.id}'; renderAccountSheet();" aria-label="Edit amount">✏️</button>` : ""}
             </div>`;
         })
         .join("");
@@ -1768,6 +1774,172 @@ function renderAccountSheet() {
                 : ""
         }
     `;
+}
+
+// ============================================================
+// Notebook (Short) debtor account -- mobile-first ledger layout
+// (2026-09-20). Pure presentation: the balance is APP.activeAccount.balance
+// (the same d.amount - d.amountPaid openAccount()'s caller has always
+// passed in) and each row's running balance is the server's own `remaining`
+// -- nothing here calculates a balance. Entries are rendered in the order
+// getShortDebtorTransactions() returns them (newest first, capped at 5
+// server-side), so date grouping is deliberately not done: at most 5 rows
+// would gain up to 5 extra headers for no scanning benefit.
+// ============================================================
+
+// Display-only suffix for the Notebook ledger. The rest of the app shows
+// bare numbers; change it here if the shop's currency label ever differs.
+const CURRENCY_LABEL = "SAR";
+const MINUS_SIGN = "−";
+
+// money() rounds to whole units, which would show a 0.5 payment as "1" (or a
+// 0.4 one as "0") -- fine for a card's balance ring, wrong for a ledger line.
+// Whole numbers format identically; fractions keep up to 2 decimals.
+function moneyTx_(value) {
+    return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// "18 Sep · 14:32" (year added only when it isn't the current one). A
+// legacy row with no time part falls back to just the date.
+function fmtTxDate_(iso) {
+    if (!iso) return "";
+    const raw = String(iso);
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+    const d = new Date(dateOnly ? raw + "T00:00:00" : raw);
+    if (isNaN(d.getTime())) return raw;
+
+    const opts = { day: "numeric", month: "short" };
+    if (String(d.getFullYear()) !== todayStr().slice(0, 4)) opts.year = "numeric";
+    const day = d.toLocaleDateString("en-GB", opts);
+    if (dateOnly) return day;
+    return `${day} · ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+// The server builds description as "<Payment received|Debt added>" plus
+// " -- <note>" when a note was entered. The type pill already says
+// Payment/Invoice, so when there IS a note show just the note; otherwise
+// show the server's text as-is (muted) so a description is always present.
+function shortTxDescription_(e) {
+    const raw = String(e.description || "");
+    const m = raw.match(/^(?:Payment received|Debt added) -- ([\s\S]+)$/);
+    if (m) return { text: m[1], isDefault: false };
+    return { text: raw, isDefault: true };
+}
+
+// Tap a clamped description to read the rest (tap again to collapse). Not
+// while its row is swiped open -- that tap is just closing the row.
+function toggleTxDesc_(el) {
+    if (el.closest(".swipeRow-open")) return;
+    el.classList.toggle("txExpanded");
+}
+
+function shortTxRowHtml_(e, canDelete) {
+    // Stored sign is the source of truth for direction (payment < 0,
+    // invoice > 0); `type` is preferred only when the server sent one.
+    const isPayment = e.type ? e.type === "payment" : e.amount < 0;
+    const kind = isPayment ? "payment" : "invoice";
+    const desc = shortTxDescription_(e);
+    const canDeleteEntry = canDelete && e.id;
+
+    const rowHtml = `
+        <div class="txRow">
+            <div class="txMain">
+                <div class="txMeta">
+                    <span class="txType txType-${kind}"><span aria-hidden="true">${isPayment ? "↓" : "↑"}</span> ${isPayment ? "Payment" : "Invoice"}</span>
+                    <span class="txDate">${escapeHtml(fmtTxDate_(e.date))}</span>
+                    ${canDeleteEntry ? `<button type="button" class="txDeleteHover" onclick="confirmDeleteNotebookTransaction_('${escapeJsAttr(e.id)}', this)" aria-label="Delete entry">Delete</button>` : ""}
+                </div>
+                <div class="txDesc ${desc.isDefault ? "txDesc-default" : ""}" onclick="toggleTxDesc_(this)">${escapeHtml(desc.text)}</div>
+            </div>
+            <div class="txFigures">
+                <div class="txAmount txAmount-${kind}">${isPayment ? MINUS_SIGN : "+"}${moneyTx_(Math.abs(e.amount))}<span class="txCur"> ${CURRENCY_LABEL}</span></div>
+                ${e.remaining != null ? `<div class="txBalance">Balance <strong>${moneyTx_(e.remaining)}</strong></div>` : ""}
+            </div>
+        </div>`;
+
+    // Non-owners never get the swipe wrapper (or the hover delete button
+    // above) in the DOM at all -- same rule as the client cards.
+    if (!canDeleteEntry) return `<div class="txItem">${rowHtml}</div>`;
+
+    return `
+        <div class="swipeRow txItem">
+            <div class="swipeDeleteBg">
+                <button type="button" class="swipeDeleteBtn" data-delete-kind="transaction" data-delete-id="${escapeAttr(e.id)}" aria-label="Delete entry">Delete</button>
+            </div>
+            <div class="swipeContent">${rowHtml}</div>
+        </div>`;
+}
+
+function renderShortAccountSheet_() {
+    const acct = APP.activeAccount;
+    const d = debtsAllList().find((x) => String(x.clientId) === String(acct.clientId));
+    // Same gate the debtor card uses for its Add Payment / Add invoice.
+    const canAdd = hasEditAccess() && d && d.status === "active";
+    const isOwner = APP.employee && APP.employee.role === "owner"; // owner-only delete, as before
+    const entries = acct.statement ? acct.statement.entries : null;
+
+    let listHtml;
+    if (acct.error) {
+        listHtml = `<div class="emptyState">${escapeHtml(acct.error)}</div>`;
+    } else if (!entries) {
+        listHtml = `
+            <div class="txList" aria-busy="true" aria-label="Loading transactions">
+                ${'<div class="txItem"><div class="txRow"><div class="txMain"><div class="txSkel" style="width: 46%"></div><div class="txSkel" style="width: 72%"></div></div><div class="txFigures"><div class="txSkel" style="width: 64px"></div><div class="txSkel" style="width: 44px"></div></div></div></div>'.repeat(3)}
+            </div>`;
+    } else if (entries.length === 0) {
+        listHtml = `
+            <div class="txEmpty">
+                <div class="txEmptyTitle">No transactions yet</div>
+                <div class="txEmptyHint">Add the first payment or invoice to start the account history.</div>
+            </div>`;
+    } else {
+        const canSwipe = isOwner && entries.some((e) => e.id);
+        listHtml = `
+            <div class="txListHead">
+                <span>Last ${entries.length} transaction${entries.length === 1 ? "" : "s"}</span>
+                ${canSwipe ? `<span class="txSwipeHint">Swipe left to delete</span>` : ""}
+            </div>
+            <div class="txList">${entries.map((e) => shortTxRowHtml_(e, isOwner)).join("")}</div>`;
+    }
+
+    document.getElementById("accountBody").innerHTML = `
+        <div class="txHeader">
+            <div class="txHeaderLabel">Current balance</div>
+            <div class="txHeaderBalance">${moneyTx_(acct.balance)}<span class="txCur"> ${CURRENCY_LABEL}</span></div>
+            ${
+                canAdd
+                    ? `<div class="txActions">
+                <button type="button" class="debtBtn debtBtnPrimary txActionBtn" onclick="startAccountAction_('pay')">+ Payment</button>
+                <button type="button" class="debtBtn debtBtnDark txActionBtn" onclick="startAccountAction_('invoice')">+ Invoice</button>
+            </div>`
+                    : ""
+            }
+        </div>
+        ${listHtml}
+    `;
+}
+
+// "+ Payment" / "+ Invoice" in a Notebook account's header. Reuses the
+// debtor card's own inline form (openAction() -> submitPayment()/
+// submitInvoice(), untouched) rather than a second copy of that form: the
+// sheet closes and the card's form opens, focused, in one tap.
+function startAccountAction_(kind) {
+    if (!APP.activeAccount) return;
+    const clientId = APP.activeAccount.clientId;
+    closeAccount();
+    openAction(clientId, kind);
+
+    // The account can be opened for a client whose card isn't in the list
+    // right now (e.g. "View Notebook Client" from a Daftra card, with a
+    // different tab/filter/search active) -- clear those so the form
+    // actually appears instead of silently opening on nothing.
+    if (!document.getElementById(`draft-${clientId}`)) {
+        APP.typeFilter = "all";
+        APP.tagFilter = null;
+        APP.tab = "active";
+        document.getElementById("debtsSearch").value = "";
+        openAction(clientId, kind);
+    }
 }
 
 function toggleReconciliation_() {
