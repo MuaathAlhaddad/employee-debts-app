@@ -1321,11 +1321,11 @@ function submitDisable(clientId) {
 // ============================================================
 
 function buildDebtAddedMessage_(addedAmount, newTotal) {
-    return `باقي عليك من فاتورة اليوم ${money(addedAmount)}، اجمالي عليك ${money(newTotal)}`;
+    return `باقي عليك من فاتورة اليوم: ${money(addedAmount)}،\nالاجمالي عليك: ${money(newTotal)}`;
 }
 
 function buildPaymentMessage_(paidAmount, newRemaining) {
-    return `واصل ${money(paidAmount)} وباقي ${money(newRemaining)}`;
+    return `واصل: ${money(paidAmount)}،\nالاجمالي عليك: ${money(newRemaining)}`;
 }
 
 // On-demand share button on every card -- separate from the automatic
@@ -1343,7 +1343,7 @@ function shareDebtorBalance_(clientId) {
     if (!d) return;
 
     const remaining = d.amount - d.amountPaid;
-    const text = `اجمالي عليك: ${money(remaining)}`;
+    const text = `الاجمالي عليك: ${money(remaining)}`;
     const digits = normalizePhoneForWhatsapp_(d.phone);
     // wa.me needs an actual number in the path -- an empty segment
     // doesn't behave as "no contact". api.whatsapp.com/send with no

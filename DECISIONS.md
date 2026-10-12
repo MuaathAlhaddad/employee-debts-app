@@ -9,6 +9,17 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-10-12 — WhatsApp message wording standardized on "الاجمالي عليك"
+
+**Decision (owner's request):** All client-facing WhatsApp texts now end with the running total on its own
+line, in the same wording:
+- Invoice added: `باقي عليك من فاتورة اليوم: X،` ⏎ `الاجمالي عليك: Y`
+- Payment recorded: `واصل: X،` ⏎ `الاجمالي عليك: Y` (was `واصل X وباقي Y`)
+- Card share button: `الاجمالي عليك: Y`
+
+**Where:** `buildDebtAddedMessage_()`, `buildPaymentMessage_()`, `shareDebtorBalance_()` in `js/app.js`.
+The in-app preview (`.whatsappPromptMessage`) already uses `white-space: pre-wrap`, so the line break shows there too.
+
 ## 2026-09-20 — Notebook "Client account" redesigned as a mobile-first ledger (presentation only)
 
 **Decision:** A Notebook (Short) debtor's account panel now renders through its own
