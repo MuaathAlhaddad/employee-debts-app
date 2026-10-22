@@ -1799,7 +1799,7 @@ function moneyTx_(value) {
     return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-// "18 Sep · 14:32" (year added only when it isn't the current one). A
+// "22 Oct - 10:30 AM" (year added only when it isn't the current one). A
 // legacy row with no time part falls back to just the date.
 function fmtTxDate_(iso) {
     if (!iso) return "";
@@ -1812,7 +1812,17 @@ function fmtTxDate_(iso) {
     if (String(d.getFullYear()) !== todayStr().slice(0, 4)) opts.year = "numeric";
     const day = d.toLocaleDateString("en-GB", opts);
     if (dateOnly) return day;
-    return `${day} · ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+    return `${day} - ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+}
+
+// "Ahmed, 22 Oct - 10:30 AM" -- one inline line under the type badge.
+// `actor` is the Short Debtor Transactions "Actor" column; a response
+// without it (older API deployment) shows just the date/time.
+function fmtTxMeta_(e) {
+    const when = fmtTxDate_(e.date);
+    const who = String(e.actor || "").trim();
+    if (!who) return when;
+    return when ? `${who}, ${when}` : who;
 }
 
 // The server builds description as "<Payment received|Debt added>" plus
@@ -1841,20 +1851,18 @@ function shortTxRowHtml_(e, canDelete) {
     const desc = shortTxDescription_(e);
     const canDeleteEntry = canDelete && e.id;
 
+    // Grid columns: Payment/Invoice (badge + author/date line) |
+    // Description | Amount | Balance -- see .txGrid in app.css.
     const rowHtml = `
-        <div class="txRow">
-            <div class="txMain">
-                <div class="txMeta">
-                    <span class="txType txType-${kind}"><span aria-hidden="true">${isPayment ? "↓" : "↑"}</span> ${isPayment ? "Payment" : "Invoice"}</span>
-                    <span class="txDate">${escapeHtml(fmtTxDate_(e.date))}</span>
-                    ${canDeleteEntry ? `<button type="button" class="txDeleteHover" onclick="confirmDeleteNotebookTransaction_('${escapeJsAttr(e.id)}', this)" aria-label="Delete entry">Delete</button>` : ""}
-                </div>
-                <div class="txDesc ${desc.isDefault ? "txDesc-default" : ""}" onclick="toggleTxDesc_(this)">${escapeHtml(desc.text)}</div>
+        <div class="txRow txGrid">
+            <div class="txTypeCell">
+                <span class="txType txType-${kind}"><span aria-hidden="true">${isPayment ? "↓" : "↑"}</span> ${isPayment ? "Payment" : "Invoice"}</span>
+                <div class="txMeta">${escapeHtml(fmtTxMeta_(e))}</div>
+                ${canDeleteEntry ? `<button type="button" class="txDeleteHover" onclick="confirmDeleteNotebookTransaction_('${escapeJsAttr(e.id)}', this)" aria-label="Delete entry">Delete</button>` : ""}
             </div>
-            <div class="txFigures">
-                <div class="txAmount txAmount-${kind}">${isPayment ? MINUS_SIGN : "+"}${moneyTx_(Math.abs(e.amount))}<span class="txCur"> ${CURRENCY_LABEL}</span></div>
-                ${e.remaining != null ? `<div class="txBalance">Balance <strong>${moneyTx_(e.remaining)}</strong></div>` : ""}
-            </div>
+            <div class="txDesc ${desc.isDefault ? "txDesc-default" : ""}" onclick="toggleTxDesc_(this)">${escapeHtml(desc.text)}</div>
+            <div class="txAmount txAmount-${kind}">${isPayment ? MINUS_SIGN : "+"}${moneyTx_(Math.abs(e.amount))}</div>
+            <div class="txBalance">${e.remaining != null ? moneyTx_(e.remaining) : ""}</div>
         </div>`;
 
     // Non-owners never get the swipe wrapper (or the hover delete button
@@ -1884,7 +1892,7 @@ function renderShortAccountSheet_() {
     } else if (!entries) {
         listHtml = `
             <div class="txList" aria-busy="true" aria-label="Loading transactions">
-                ${'<div class="txItem"><div class="txRow"><div class="txMain"><div class="txSkel" style="width: 46%"></div><div class="txSkel" style="width: 72%"></div></div><div class="txFigures"><div class="txSkel" style="width: 64px"></div><div class="txSkel" style="width: 44px"></div></div></div></div>'.repeat(3)}
+                ${'<div class="txItem"><div class="txRow txGrid"><div><div class="txSkel" style="width: 80%"></div><div class="txSkel" style="width: 60%"></div></div><div class="txSkel" style="width: 85%"></div><div class="txSkel txSkelNum"></div><div class="txSkel txSkelNum"></div></div></div>'.repeat(3)}
             </div>`;
     } else if (entries.length === 0) {
         listHtml = `
@@ -1896,10 +1904,15 @@ function renderShortAccountSheet_() {
         const canSwipe = isOwner && entries.some((e) => e.id);
         listHtml = `
             <div class="txListHead">
-                <span>Last ${entries.length} transaction${entries.length === 1 ? "" : "s"}</span>
+                <span>Last ${entries.length} transaction${entries.length === 1 ? "" : "s"} · amounts in ${CURRENCY_LABEL}</span>
                 ${canSwipe ? `<span class="txSwipeHint">Swipe left to delete</span>` : ""}
             </div>
-            <div class="txList">${entries.map((e) => shortTxRowHtml_(e, isOwner)).join("")}</div>`;
+            <div class="txList">
+                <div class="txGrid txColHead">
+                    <span>Payment/<wbr>Invoice</span><span>Description</span><span class="txNum">Amount</span><span class="txNum">Balance</span>
+                </div>
+                ${entries.map((e) => shortTxRowHtml_(e, isOwner)).join("")}
+            </div>`;
     }
 
     document.getElementById("accountBody").innerHTML = `

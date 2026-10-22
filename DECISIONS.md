@@ -9,6 +9,28 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-10-22 — Notebook ledger rows become a 4-column grid with author line (presentation only)
+
+**Decision:** Each Notebook "Client account" row is now a grid, in this order:
+`Payment/Invoice | Description | Amount | Balance`, with a column-header row at the top of the list.
+- **Column 1** = type badge + one inline gray line `Ahmed, 22 Oct - 10:30 AM` (`fmtTxMeta_()`/`fmtTxDate_()`).
+  The badge is now outlined for both types: payment = red text/border + ↓, invoice = black (`--ink`) text/border + ↑
+  (supersedes 2026-09-20's "invoice = filled pill"). Arrow + label still carry the type without color.
+- **Time** is now `10:30 AM` (12-hour) instead of `14:32`; date/year rules and the local-time parsing are unchanged.
+- **Author** comes from `e.actor`. `getShortDebtorTransactions()` does **not** return it yet (the sheet's "Actor"
+  column exists, row[7]); until the API adds `actor` to each entry, the line shows just the date/time.
+- **Currency** — the per-row `SAR` suffix and the "Balance" word moved out of the cells (no room in four columns);
+  the list head now says "amounts in SAR" and the column header labels Balance. Header balance keeps `SAR`.
+- **Sizing** — fixed px number tracks (so header and rows align even though each row is its own grid, inside
+  the swipe wrapper) that widen via a container query on `.txList`, not a viewport media query: the sheet is
+  capped at 480px, so viewport width says little about the list's width.
+- **Desktop Delete** — the hover-only fallback is now absolutely positioned at the row's bottom-right so it
+  no longer adds height. Swipe engine, owner gating and amounts/balances untouched.
+
+**Why:** Owner's request for clearer hierarchy and a consistent column layout.
+
+---
+
 ## 2026-10-12 — WhatsApp message wording standardized on "الاجمالي عليك"
 
 **Decision (owner's request):** All client-facing WhatsApp texts now end with the running total on its own
