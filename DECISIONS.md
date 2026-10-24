@@ -9,6 +9,23 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-10-22 — "Add to the list" locks while saving and warns on a matching active Notebook client
+
+**Decision (owner's request, after "مايا بساطة افغانية" was created three times — see KNOWN_ISSUES.md):**
+- `submitShortDebt()` ignores repeat calls while one is in flight (`APP.addingShortDebt`); the button
+  (`#addShortSubmit`) is disabled and reads "Adding..." until success, error, or the offline check fails.
+- Before sending, `findActiveNotebookMatches_()` checks the synced list for an **active** Notebook client with
+  the same name (trimmed, whitespace-collapsed, case-insensitive) or the same phone (normalized like the
+  WhatsApp links, so `05…` = `9665…`). A match shows a `confirm()` listing each match, why, and its balance;
+  Cancel sends nothing, OK creates the separate client as before. Paid/dead names don't warn — the server
+  already reopens those rows (`findResolvedShortDebtByName_`).
+
+**Why frontend-only:** No API deploy needed, and the server deliberately allows a second active same-name
+client (it can be a genuinely different person). The check uses the last sync, so a client added on another
+phone since then won't trigger it.
+
+---
+
 ## 2026-10-22 — Notebook ledger rows become a 4-column grid with author line (presentation only)
 
 **Decision:** Each Notebook "Client account" row is now a grid, in this order:

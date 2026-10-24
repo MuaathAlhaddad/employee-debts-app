@@ -92,6 +92,18 @@ duplicate payment/invoice. Needs design work in `employee-debts-api` (whether Da
 supports a client-supplied reference/idempotency field is unconfirmed) before this repo's write
 paths can be updated to pass one through. **Not yet implemented.**
 
+**Confirmed real case (2026-10-11, found 2026-10-22):** Notebook client "مايا بساطة افغانية" exists three
+times in Debts Snapshot (rows 484–486), all via `addShortDebt` as "Owner", each 269: 19:48:47, 19:51:08,
+19:51:18 (Riyadh time). Only the first (`S-10ed0bb7…`) has later activity (+10 invoice at 19:53, balance 279);
+the other two are untouched duplicates. The 2-minute and 10-second gaps rule out an automatic retry; each
+is a separate "Add to the list" submit. Contributing factors in the code: `submitShortDebt()` never disables
+its button and the loading indicator is a 3px bar, so a slow request (online probe up to 4s + Apps Script)
+looks like nothing happened; an error shown after a server-side success invites a retry; and
+`addShortDebt()` deliberately doesn't match an existing ACTIVE same-name client. **Partly mitigated
+2026-10-22** (see DECISIONS.md): the Add button now locks while a request runs, and a same-name/phone
+match warns first. Still open: a lost response after a server-side success can still lead to a retry;
+only a server-side idempotency key closes that.
+
 ## GAP (documented 2026-09-10, deliberate) — No restore UI for a deleted Notebook client/payment/invoice
 
 `employee-debts-api`'s `restoreShortDebt()`/`restoreShortTransaction()` are real, working API

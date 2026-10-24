@@ -1598,7 +1598,38 @@ function toggleAddShortForm() {
     }
 }
 
+// Active Notebook clients (from the last sync) that share this name or
+// phone -- a 2026-10-11 incident created the same client three times (see
+// KNOWN_ISSUES.md). Names compare trimmed/case-insensitive; phones compare
+// after the same normalization the WhatsApp links use, so "0545..." and
+// "966545..." match. Deleted clients are already absent from the synced list.
+function findActiveNotebookMatches_(name, phone) {
+    const normName = (s) => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
+    const wantName = normName(name);
+    const wantPhone = normalizePhoneForWhatsapp_(phone);
+
+    return debtsAllList()
+        .filter((d) => d.type === "Short" && d.status === "active")
+        .map((d) => ({
+            d,
+            sameName: !!wantName && normName(d.clientName) === wantName,
+            samePhone: !!wantPhone && normalizePhoneForWhatsapp_(d.phone) === wantPhone,
+        }))
+        .filter((m) => m.sameName || m.samePhone);
+}
+
+function setAddShortBusy_(busy) {
+    APP.addingShortDebt = busy;
+    const btn = document.getElementById("addShortSubmit");
+    btn.disabled = busy;
+    btn.textContent = busy ? "Adding..." : "Add to the list";
+}
+
 function submitShortDebt() {
+    // One request at a time: a slow save used to leave this button live,
+    // and every extra tap created another client.
+    if (APP.addingShortDebt) return;
+
     const name = document.getElementById("newName").value.trim();
     const phone = document.getElementById("newPhone").value.replace(/\s+/g, "");
     const amount = document.getElementById("newAmount").value;
@@ -1609,8 +1640,26 @@ function submitShortDebt() {
 
     errorBox.style.display = "none";
 
+    const matches = findActiveNotebookMatches_(name, phone);
+    if (matches.length) {
+        const lines = matches.map((m) => {
+            const why = m.sameName && m.samePhone ? "same name and phone" : m.sameName ? "same name" : "same phone";
+            const balance = (Number(m.d.amount) || 0) - (Number(m.d.amountPaid) || 0);
+            return `- ${m.d.clientName} (${why}, balance ${moneyTx_(balance)})`;
+        });
+        const ok = confirm(
+            `${matches.length === 1 ? "An active Notebook client already matches" : "Active Notebook clients already match"} this:\n\n` +
+                `${lines.join("\n")}\n\n` +
+                `To add to an existing client, cancel and use "Add invoice" on their card.\n\nCreate a separate new client anyway?`,
+        );
+        if (!ok) return;
+    }
+
+    setAddShortBusy_(true);
+
     withOnlineCheck(
         () => {
+            setAddShortBusy_(false);
             errorBox.textContent = "You're offline -- connect to the internet to add this.";
             errorBox.style.display = "block";
         },
@@ -1621,10 +1670,12 @@ function submitShortDebt() {
             // signature.
             apiCall("addShortDebt", APP.employee.name, APP.employee.pin, name, amount, phone, "", dateGiven, notes, creditor)
                 .then(() => {
+                    setAddShortBusy_(false);
                     toggleAddShortForm();
                     doSync(true);
                 })
                 .catch((err) => {
+                    setAddShortBusy_(false);
                     hideLoading();
                     errorBox.textContent = err.message || err;
                     errorBox.style.display = "block";
