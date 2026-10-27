@@ -9,6 +9,20 @@ Each entry: date, decision, why, where it's enforced/relevant in code.
 
 ---
 
+## 2026-10-27 — "Show 5 older transactions" link under both account ledgers
+
+**Decision (owner's request):** Both the Long (Daftra) and Notebook (Short) account sheets show a
+"Show 5 older transactions" link under the list whenever the server reports `hasMore`. Each tap re-fetches
+the newest `count + 5` entries (`loadMoreAccountEntries_()`, `ACCOUNT_PAGE_SIZE`); the rows already shown stay
+on screen while it loads, and a failure is a toast rather than replacing the ledger. Reopening the account
+(including after a payment/invoice write) starts back at 5.
+
+**Why:** The account previously showed only the last 5. Needs `employee-debts-api`'s matching `count`/`hasMore`
+change (its DECISIONS.md, same date) deployed — against an older API deployment `hasMore` is absent, so the
+link simply never appears.
+
+---
+
 ## 2026-10-22 — "Add to the list" locks while saving and warns on a matching active Notebook client
 
 **Decision (owner's request, after "مايا بساطة افغانية" was created three times — see KNOWN_ISSUES.md):**

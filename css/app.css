@@ -1205,6 +1205,29 @@ body.is-offline .debtOfflinePill {
     margin: 0 2px 8px;
 }
 
+/* "Show 5 older transactions" under either account ledger -- a text link,
+   not a full button, so it doesn't compete with + Payment / + Invoice. */
+.acctLoadMore {
+    display: block;
+    margin: 8px auto 12px;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.acctLoadMore:disabled {
+    color: var(--muted);
+    text-decoration: none;
+    cursor: default;
+}
+
 .txList {
     container: txlist / inline-size;
     background: white;

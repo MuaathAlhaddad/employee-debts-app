@@ -1700,7 +1700,7 @@ function openAccount(clientId, clientName, balance) {
     // rather than recomputed from the last-30-days activity list below,
     // since a running total over a partial window would be a confusingly
     // wrong number for any debt older than 30 days.
-    const account = { clientId, clientName, balance, statement: null, isLong, error: null };
+    const account = { clientId, clientName, balance, statement: null, isLong, error: null, count: ACCOUNT_PAGE_SIZE, loadingMore: false };
     APP.activeAccount = account;
     document.getElementById("accountPanel").style.display = "flex";
     document.getElementById("accountName").textContent = clientName;
@@ -1733,7 +1733,7 @@ function openAccount(clientId, clientName, balance) {
     // server-side comment).
     const action = isLong ? "getLongDebtorAccount" : "getShortDebtorTransactions";
 
-    apiCall(action, APP.employee.name, APP.employee.pin, clientId)
+    apiCall(action, APP.employee.name, APP.employee.pin, clientId, account.count)
         .then((statement) => {
             // Closed (or switched to another client) while this was in
             // flight -- don't paint a stale ledger into the wrong panel.
@@ -1745,6 +1745,53 @@ function openAccount(clientId, clientName, balance) {
             if (APP.activeAccount !== account) return;
             showAccountMessage(err.message || String(err));
         });
+}
+
+// "Show 5 older transactions" under either ledger (2026-10-27). Re-asks the
+// server for the newest count+5 entries rather than paging by offset, so a
+// row added/deleted in between can't leave a gap or a duplicate. The rows
+// already shown stay on screen while it loads; a failure is a toast, not a
+// replaced ledger.
+const ACCOUNT_PAGE_SIZE = 5;
+
+function loadMoreAccountEntries_() {
+    const account = APP.activeAccount;
+    if (!account || account.loadingMore || !account.statement) return;
+    if (!navigator.onLine) {
+        showSyncToast_([{ label: "Offline -- older transactions need a live connection", ok: false }]);
+        return;
+    }
+
+    const action = account.isLong ? "getLongDebtorAccount" : "getShortDebtorTransactions";
+    const count = account.count + ACCOUNT_PAGE_SIZE;
+    account.loadingMore = true;
+    renderAccountSheet();
+
+    apiCall(action, APP.employee.name, APP.employee.pin, account.clientId, count)
+        .then((statement) => {
+            if (APP.activeAccount !== account) return;
+            account.statement = statement;
+            account.count = count;
+        })
+        .catch((err) => {
+            if (APP.activeAccount !== account) return;
+            showSyncToast_([{ label: "Could not load older transactions: " + (err.message || String(err)), ok: false }]);
+        })
+        .finally(() => {
+            if (APP.activeAccount !== account) return;
+            account.loadingMore = false;
+            renderAccountSheet();
+        });
+}
+
+// hasMore comes from the server; an older API deployment that doesn't send
+// it gets no link (it would ignore the larger count anyway).
+function loadMoreAccountHtml_() {
+    const account = APP.activeAccount;
+    if (!account.statement || !account.statement.hasMore) return "";
+    return `<button type="button" class="acctLoadMore" onclick="loadMoreAccountEntries_()" ${account.loadingMore ? "disabled" : ""}>${
+        account.loadingMore ? "Loading..." : `Show ${ACCOUNT_PAGE_SIZE} older transactions`
+    }</button>`;
 }
 
 function closeAccount() {
@@ -1811,6 +1858,7 @@ function renderAccountSheet() {
         </div>
         <div class="debtSheetHint">Last ${statement.entries.length} transaction${statement.entries.length === 1 ? "" : "s"}</div>
         <div class="acctStatementList">${rows || '<div class="emptyState">No activity recorded yet.</div>'}</div>
+        ${loadMoreAccountHtml_()}
         ${
             canEdit && isLong
                 ? `
@@ -1833,9 +1881,9 @@ function renderAccountSheet() {
 // (the same d.amount - d.amountPaid openAccount()'s caller has always
 // passed in) and each row's running balance is the server's own `remaining`
 // -- nothing here calculates a balance. Entries are rendered in the order
-// getShortDebtorTransactions() returns them (newest first, capped at 5
-// server-side), so date grouping is deliberately not done: at most 5 rows
-// would gain up to 5 extra headers for no scanning benefit.
+// getShortDebtorTransactions() returns them (newest first, 5 at a time --
+// see loadMoreAccountEntries_()), so date grouping is deliberately not done:
+// a handful of rows would gain as many extra headers for no scanning benefit.
 // ============================================================
 
 // Display-only suffix for the Notebook ledger. The rest of the app shows
@@ -1963,7 +2011,8 @@ function renderShortAccountSheet_() {
                     <span>Payment/<wbr>Invoice</span><span>Description</span><span class="txNum">Amount</span><span class="txNum">Balance</span>
                 </div>
                 ${entries.map((e) => shortTxRowHtml_(e, isOwner)).join("")}
-            </div>`;
+            </div>
+            ${loadMoreAccountHtml_()}`;
     }
 
     document.getElementById("accountBody").innerHTML = `
